@@ -232,7 +232,7 @@ func (s *ExecutionService) executeC(submission *model.CodeSubmission) {
 		"gcc:latest", "bash", "-c", "cd /code && gcc -o main main.c && ./main")
 
 	log.Printf("[C-%s] Executing C code with timeout: 10s", submission.ID)
-	output, err := s.executeWithTimeout(cmd, 50*time.Second, submission.ID)
+	output, err := s.executeWithTimeout(cmd, 1000*time.Second, submission.ID)
 
 	elapsed := time.Since(startTime)
 	log.Printf("[C-%s] C execution completed in %v", submission.ID, elapsed)
