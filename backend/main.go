@@ -1,19 +1,39 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/arnab-afk/monaco/handler"
 )
 
 func main() {
+	// Configure logging with timestamps and file locations
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetOutput(os.Stdout)
+
+	log.Println("Starting Monaco code execution backend...")
+
 	h := handler.NewHandler()
 
-	http.HandleFunc("/submit", h.SubmitHandler)
-	http.HandleFunc("/status", h.StatusHandler)
-	http.HandleFunc("/result", h.ResultHandler)
+	// Create a middleware for request logging
+	loggingMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			startTime := time.Now()
+			log.Printf("[HTTP] %s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
+			next(w, r)
+			log.Printf("[HTTP] %s %s completed in %v", r.Method, r.URL.Path, time.Since(startTime))
+		}
+	}
 
-	fmt.Println("Server started at :8080")
-	http.ListenAndServe(":8080", nil)
+	// Register handlers with logging middleware
+	http.HandleFunc("/submit", loggingMiddleware(h.SubmitHandler))
+	http.HandleFunc("/status", loggingMiddleware(h.StatusHandler))
+	http.HandleFunc("/result", loggingMiddleware(h.ResultHandler))
+
+	port := ":8080"
+	log.Printf("Server started at %s", port)
+	log.Fatal(http.ListenAndServe(port, nil))
 }
