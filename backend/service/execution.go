@@ -188,7 +188,7 @@ func (s *ExecutionService) executeJava(submission *model.CodeSubmission) {
 		"openjdk:11", "bash", "-c", "cd /code && javac Main.java && java Main")
 
 	log.Printf("[JAVA-%s] Executing Java code with timeout: 10s", submission.ID)
-	output, err := s.executeWithTimeout(cmd, 10*time.Second, submission.ID)
+	output, err := s.executeWithTimeout(cmd, 50*time.Second, submission.ID)
 
 	elapsed := time.Since(startTime)
 	log.Printf("[JAVA-%s] Java execution completed in %v", submission.ID, elapsed)
