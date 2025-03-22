@@ -524,10 +524,13 @@ Happy coding!`;
       { type: 'command', content: `$ run ${activeFile.id}` }
     ];
     setTerminalOutput(newOutput);
-  
+
+    // Use API URL from environment variable
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
     try {
       // Step 1: Submit code to backend
-      const submitResponse = await fetch('http://localhost:8080/submit', {
+      const submitResponse = await fetch(`${apiUrl}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -551,7 +554,7 @@ Happy coding!`;
         // Add a small delay between polls
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const statusResponse = await fetch(`http://localhost:8080/status?id=${id}`);
+        const statusResponse = await fetch(`${apiUrl}/status?id=${id}`);
         if (!statusResponse.ok) {
           throw new Error(`Status check failed: ${statusResponse.status}`);
         }
@@ -576,7 +579,7 @@ Happy coding!`;
       }
       
       // Get the result for both completed and failed status
-      const resultResponse = await fetch(`http://localhost:8080/result?id=${id}`);
+      const resultResponse = await fetch(`${apiUrl}/result?id=${id}`);
       if (!resultResponse.ok) {
         throw new Error(`Result fetch failed: ${resultResponse.status}`);
       }
