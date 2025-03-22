@@ -181,11 +181,11 @@ func (s *ExecutionService) executeJava(submission *model.CodeSubmission) {
 	// Run Java code in container with performance optimizations
 	cmd := exec.Command("docker", "run", "--rm",
 		"--network=none",       // No network access
-		"--memory=400m",        // Further increased memory limit
+		"--memory=400m",        // Memory limit
 		"--cpu-period=100000",  // CPU quota period
-		"--cpu-quota=50000",    // 50% CPU (increased from 25%)
+		"--cpu-quota=50000",    // 50% CPU
 		"-v", tempDir+":/code", // Mount code directory
-		"adoptopenjdk/openjdk11:alpine-jre", // Smaller, faster image
+		"eclipse-temurin:11-jdk-alpine", // JDK image with Alpine base (smaller and faster)
 		"sh", "-c", "cd /code && javac Main.java && java -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Xverify:none -Xms64m -Xmx256m Main")
 
 	log.Printf("[JAVA-%s] Executing Java code with optimized settings", submission.ID)
