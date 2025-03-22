@@ -181,15 +181,15 @@ func (s *ExecutionService) executeJava(submission *model.CodeSubmission) {
 	// Run Java code in container with performance optimizations
 	cmd := exec.Command("docker", "run", "--rm",
 		"--network=none",       // No network access
-		"--memory=300m",        // Increased memory limit
+		"--memory=400m",        // Further increased memory limit
 		"--cpu-period=100000",  // CPU quota period
-		"--cpu-quota=25000",    // 25% CPU (increased from 5%)
+		"--cpu-quota=50000",    // 50% CPU (increased from 25%)
 		"-v", tempDir+":/code", // Mount code directory
 		"adoptopenjdk/openjdk11:alpine-jre", // Smaller, faster image
-		"bash", "-c", "cd /code && javac Main.java && java -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Xverify:none -Xms64m Main")
+		"sh", "-c", "cd /code && javac Main.java && java -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Xverify:none -Xms64m -Xmx256m Main")
 
 	log.Printf("[JAVA-%s] Executing Java code with optimized settings", submission.ID)
-	output, err := s.executeWithTimeout(cmd, 15*time.Second, submission.ID)
+	output, err := s.executeWithTimeout(cmd, 20*time.Second, submission.ID)
 
 	elapsed := time.Since(startTime)
 	log.Printf("[JAVA-%s] Java execution completed in %v", submission.ID, elapsed)
