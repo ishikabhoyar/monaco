@@ -714,7 +714,7 @@ Happy coding!`;
                   title="Run code"
                 >
                   {isRunning ? <Loader size={16} className="animate-spin" /> : <Play size={16} />}
-                  <span>Run</span>
+                  
                 </button>
                 <button 
                   className="terminal-toggle-button"

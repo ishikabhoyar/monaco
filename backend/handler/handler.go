@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/arnab-afk/monaco/model"
 	"github.com/arnab-afk/monaco/service"
@@ -79,7 +80,34 @@ func (h *Handler) StatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"status": submission.Status})
+	// Return status with time information
+	response := map[string]interface{}{
+		"id":     submission.ID,
+		"status": submission.Status,
+	}
+
+	// Add time information based on status
+	if !submission.QueuedAt.IsZero() {
+		response["queuedAt"] = submission.QueuedAt.Format(time.RFC3339)
+	}
+
+	if submission.Status == "running" && !submission.StartedAt.IsZero() {
+		response["startedAt"] = submission.StartedAt.Format(time.RFC3339)
+		response["runningFor"] = time.Since(submission.StartedAt).String()
+	}
+
+	if submission.Status == "completed" || submission.Status == "failed" {
+		if !submission.CompletedAt.IsZero() && !submission.StartedAt.IsZero() {
+			response["executionTime"] = submission.CompletedAt.Sub(submission.StartedAt).Milliseconds()
+			response["completedAt"] = submission.CompletedAt.Format(time.RFC3339)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to serialize response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // ResultHandler handles result requests
@@ -99,7 +127,56 @@ func (h *Handler) ResultHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"output": submission.Output})
+	// Prepare response with safe time handling
+	response := map[string]interface{}{
+		"id":       submission.ID,
+		"status":   submission.Status,
+		"output":   submission.Output,
+		"language": submission.Language,
+	}
+
+	// Only include time fields if they're set
+	if !submission.QueuedAt.IsZero() {
+		response["queuedAt"] = submission.QueuedAt.Format(time.RFC3339)
+	}
+
+	if !submission.StartedAt.IsZero() {
+		response["startedAt"] = submission.StartedAt.Format(time.RFC3339)
+	}
+
+	if !submission.CompletedAt.IsZero() {
+		response["completedAt"] = submission.CompletedAt.Format(time.RFC3339)
+
+		// Calculate times only if we have valid timestamps
+		if !submission.StartedAt.IsZero() {
+			executionTime := submission.CompletedAt.Sub(submission.StartedAt)
+			response["executionTime"] = executionTime.Milliseconds() // Use milliseconds for frontend
+			response["executionTimeFormatted"] = executionTime.String()
+		}
+
+		if !submission.QueuedAt.IsZero() {
+			totalTime := submission.CompletedAt.Sub(submission.QueuedAt)
+			response["totalTime"] = totalTime.Milliseconds() // Use milliseconds for frontend
+			response["totalTimeFormatted"] = totalTime.String()
+		}
+	}
+
+	// Return full submission details
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to serialize response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// QueueStatsHandler provides information about the job queue
+func (h *Handler) QueueStatsHandler(w http.ResponseWriter, r *http.Request) {
+	stats := h.executionService.GetQueueStats()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"queue_stats": stats,
+		"submissions": len(h.submissions),
+	})
 }
 
 // generateID creates a unique ID for submissions

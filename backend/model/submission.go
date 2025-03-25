@@ -7,6 +7,7 @@ type CodeSubmission struct {
 	ID          string    `json:"id"`
 	Code        string    `json:"code"`
 	Language    string    `json:"language"`
+	Input       string    `json:"input"`  // Added input field for stdin
 	Status      string    `json:"status"` // "queued", "running", "completed", "failed"
 	QueuedAt    time.Time `json:"queuedAt"`
 	StartedAt   time.Time `json:"startedAt,omitempty"`

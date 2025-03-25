@@ -50,6 +50,7 @@ func main() {
 	http.HandleFunc("/submit", corsMiddleware(loggingMiddleware(h.SubmitHandler)))
 	http.HandleFunc("/status", corsMiddleware(loggingMiddleware(h.StatusHandler)))
 	http.HandleFunc("/result", corsMiddleware(loggingMiddleware(h.ResultHandler)))
+	http.HandleFunc("/queue-stats", corsMiddleware(loggingMiddleware(h.QueueStatsHandler)))
 
 	port := ":8080"
 	log.Printf("Server started at %s", port)
