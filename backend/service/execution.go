@@ -26,7 +26,7 @@ type ExecutionService struct {
 func NewExecutionService() *ExecutionService {
 	log.Println("Initializing execution service with 3 concurrent workers")
 	return &ExecutionService{
-		queue: queue.NewJobQueue(3), // 3 concurrent executions max
+		queue: queue.NewJobQueue(35), // 3 concurrent executions max
 	}
 }
 
