@@ -924,6 +924,21 @@ body {
   color: #569cd6;
 }
 
+.terminal-input {
+  background-color: transparent;
+  border: none;
+  color: inherit;
+  font-family: monospace;
+  font-size: inherit;
+  margin-left: 8px;
+  outline: none;
+  width: calc(100% - 60px);
+}
+
+.terminal-input:focus {
+  outline: none;
+}
+
 .terminal-line.info {
   color: #75beff;
 }

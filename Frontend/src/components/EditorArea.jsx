@@ -60,6 +60,11 @@ const EditorArea = ({
   const [terminalOutput, setTerminalOutput] = useState([]);
   const [activeRunningFile, setActiveRunningFile] = useState(null);
 
+  // Add a new state for user input
+  const [userInput, setUserInput] = useState("");
+  // Add a new state for waiting for input
+  const [waitingForInput, setWaitingForInput] = useState(false);
+
   // Focus the input when new file modal opens
   useEffect(() => {
     if (isNewFileModalOpen && newFileInputRef.current) {
@@ -502,7 +507,7 @@ Happy coding!`;
     width: `calc(100% - ${sidebarVisible ? sidebarWidth : 0}px)`
   };
 
-  // Update the run code function to work with backend
+  // Modify the handleRunCode function to prompt for input first
   const handleRunCode = async () => {
     if (!activeFile) return;
     
@@ -512,8 +517,8 @@ Happy coding!`;
       setPanelVisible(true);
     }
     
-    // Set running state
-    setIsRunning(true);
+    // Set state to waiting for input
+    setWaitingForInput(true);
     setActiveRunningFile(activeFile.id);
     
     // Clear previous output and add new command
@@ -521,23 +526,40 @@ Happy coding!`;
     const language = getLanguageFromExtension(fileExtension);
     
     const newOutput = [
-      { type: 'command', content: `$ run ${activeFile.id}` }
+      { type: 'command', content: `$ run ${activeFile.id}` },
+      { type: 'output', content: 'Waiting for input (press Enter if no input is needed)...' }
     ];
     setTerminalOutput(newOutput);
+  };
+
+  // Add a new function to handle input submission
+  const handleInputSubmit = async () => {
+    if (!activeFile || !waitingForInput) return;
+    
+    // Set running state
+    setIsRunning(true);
+    setWaitingForInput(false);
+    
+    // Add message that we're running with the input
+    setTerminalOutput(prev => [
+      ...prev,
+      { type: 'output', content: userInput ? `Using input: "${userInput}"` : 'Running without input...' }
+    ]);
 
     // Use API URL from environment variable
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
     try {
-      // Step 1: Submit code to backend
+      // Now make the API call with the input that was entered
       const submitResponse = await fetch(`${apiUrl}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          language: language,
-          code: activeFile.content
+          language: getLanguageFromExtension(activeFile.id.split('.').pop().toLowerCase()),
+          code: activeFile.content,
+          input: userInput
         }),
       });
       
@@ -785,9 +807,13 @@ Happy coding!`;
               height={panelHeight}
               terminalOutput={terminalOutput}
               isRunning={isRunning}
+              waitingForInput={waitingForInput}
               activeRunningFile={activeRunningFile}
               initialTab="terminal"
-              onClose={togglePanel} // Use the new function
+              onClose={togglePanel}
+              userInput={userInput}
+              onUserInputChange={setUserInput}
+              onInputSubmit={handleInputSubmit}
             />
           </>
         )}

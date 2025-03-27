@@ -6,9 +6,13 @@ const Panel = ({
   height,
   terminalOutput = [],
   isRunning = false,
+  waitingForInput = false,
   activeRunningFile = null,
   initialTab = "terminal",
-  onClose
+  onClose,
+  userInput = "",
+  onUserInputChange,
+  onInputSubmit
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -28,9 +32,22 @@ const Panel = ({
                 {line.type === 'command' ? <span className="terminal-prompt">$</span> : ''} {line.content}
               </div>
             ))}
-            {isRunning && (
+            {waitingForInput && (
               <div className="terminal-line">
-                <span className="terminal-cursor"></span>
+                <span className="terminal-prompt">Input:</span>
+                <input
+                  type="text"
+                  className="terminal-input"
+                  value={userInput}
+                  onChange={(e) => onUserInputChange && onUserInputChange(e.target.value)}
+                  placeholder="Enter input for your program here..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && onInputSubmit) {
+                      onInputSubmit();
+                    }
+                  }}
+                  autoFocus
+                />
               </div>
             )}
           </>
