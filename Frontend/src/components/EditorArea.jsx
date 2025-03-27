@@ -662,6 +662,37 @@ Happy coding!`;
     }
   };
 
+  // Add this function above the return statement
+  const handleDownloadFile = () => {
+    if (!activeFile) return;
+    
+    // Create a blob with the file content
+    const blob = new Blob([activeFile.content], { type: 'text/plain' });
+    
+    // Create a URL for the blob
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary anchor element
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // Get just the filename without path
+    const fileName = activeFile.id.includes('/') ? 
+      activeFile.id.split('/').pop() : 
+      activeFile.id;
+    
+    // Set the download attribute with the filename
+    a.download = fileName;
+    
+    // Append to the document, click it, and then remove it
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    // Release the object URL
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="editor-container">
       {sidebarVisible && (
@@ -818,6 +849,7 @@ Happy coding!`;
           </>
         )}
 
+        {/* Modify the editor-actions div to include the download button */}
         <div className="editor-actions">
           <button 
             className="editor-action-button"
@@ -826,6 +858,30 @@ Happy coding!`;
             title="Save file"
           >
             <Save size={16} />
+          </button>
+          
+          {/* Add download button */}
+          <button 
+            className="editor-action-button"
+            onClick={handleDownloadFile}
+            disabled={!activeTab}
+            title="Download file"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
           </button>
         </div>
 
@@ -886,6 +942,61 @@ Happy coding!`;
               <Edit size={14} className="mr-1" />
               Rename
             </div>
+
+            {/* Add download option - only show for files */}
+            {contextMenuTarget?.type === 'file' && (
+              <div className="context-menu-item" onClick={() => {
+                // Find the file in the files array
+                const file = files.find(f => f.id === contextMenuTarget.path);
+                if (file) {
+                  // Create a blob with the file content
+                  const blob = new Blob([file.content], { type: 'text/plain' });
+                  
+                  // Create a URL for the blob
+                  const url = URL.createObjectURL(blob);
+                  
+                  // Create a temporary anchor element
+                  const a = document.createElement('a');
+                  a.href = url;
+                  
+                  // Get just the filename without path
+                  const fileName = file.id.includes('/') ? 
+                    file.id.split('/').pop() : 
+                    file.id;
+                  
+                  // Set the download attribute with the filename
+                  a.download = fileName;
+                  
+                  // Append to the document, click it, and then remove it
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  
+                  // Release the object URL
+                  URL.revokeObjectURL(url);
+                }
+                closeContextMenu();
+              }}>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-1"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download
+            </div>
+            )}
+
             <div className="context-menu-item delete" onClick={() => {
               deleteItem(contextMenuTarget.path, contextMenuTarget.type);
               closeContextMenu();
