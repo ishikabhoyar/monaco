@@ -2,7 +2,7 @@ import React from "react";
 
 const StatusBar = ({ togglePanel, panelVisible }) => {
   return (
-    <div className="status-bar">
+    <div className="status-bar ">
       {/* Left Section of the Status Bar */}
       <div className="status-bar-left">
         {/* Branch Indicator */}
