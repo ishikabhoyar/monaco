@@ -9,6 +9,32 @@ import {
 import Sidebar from "./Sidebar";
 import Panel from "./Panel";  // Import Panel component
 
+// Add this function to map file extensions to language identifiers
+const getLanguageFromExtension = (extension) => {
+  const extensionMap = {
+    'js': 'javascript',
+    'jsx': 'javascript',
+    'ts': 'typescript',
+    'tsx': 'typescript',
+    'py': 'python',
+    'java': 'java',
+    'c': 'c',
+    'cpp': 'cpp',
+    'h': 'c',
+    'hpp': 'cpp',
+    'cs': 'csharp',
+    'go': 'go',
+    'rb': 'ruby',
+    'php': 'php',
+    'html': 'html',
+    'css': 'css',
+    'json': 'json',
+    'md': 'markdown'
+  };
+  
+  return extensionMap[extension] || 'text';
+};
+
 const EditorArea = ({ 
   sidebarVisible = true, 
   activeView = "explorer",
@@ -62,8 +88,8 @@ const EditorArea = ({
 
   // Add a new state for user input
   const [userInput, setUserInput] = useState("");
-  // Add a new state for waiting for input
-  const [waitingForInput, setWaitingForInput] = useState(false);
+  // Add socket state to track the connection
+  const [activeSocket, setActiveSocket] = useState(null);
 
   // Focus the input when new file modal opens
   useEffect(() => {
@@ -131,6 +157,16 @@ const EditorArea = ({
       setShowPanel(panelVisible);
     }
   }, [panelVisible]);
+
+  // Add this useEffect for cleanup
+  useEffect(() => {
+    // Cleanup function to close socket when component unmounts
+    return () => {
+      if (activeSocket) {
+        activeSocket.close();
+      }
+    };
+  }, []);
 
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
@@ -507,7 +543,7 @@ Happy coding!`;
     width: `calc(100% - ${sidebarVisible ? sidebarWidth : 0}px)`
   };
 
-  // Modify the handleRunCode function to prompt for input first
+  // Update the handleRunCode function
   const handleRunCode = async () => {
     if (!activeFile) return;
     
@@ -517,49 +553,36 @@ Happy coding!`;
       setPanelVisible(true);
     }
     
-    // Set state to waiting for input
-    setWaitingForInput(true);
-    setActiveRunningFile(activeFile.id);
-    
     // Clear previous output and add new command
     const fileExtension = activeFile.id.split('.').pop().toLowerCase();
     const language = getLanguageFromExtension(fileExtension);
     
     const newOutput = [
       { type: 'command', content: `$ run ${activeFile.id}` },
-      { type: 'output', content: 'Waiting for input (press Enter if no input is needed)...' }
+      { type: 'output', content: 'Submitting code...' }
     ];
     setTerminalOutput(newOutput);
-  };
-
-  // Add a new function to handle input submission
-  const handleInputSubmit = async () => {
-    if (!activeFile || !waitingForInput) return;
     
-    // Set running state
-    setIsRunning(true);
-    setWaitingForInput(false);
-    
-    // Add message that we're running with the input
-    setTerminalOutput(prev => [
-      ...prev,
-      { type: 'output', content: userInput ? `Using input: "${userInput}"` : 'Running without input...' }
-    ]);
-
-    // Use API URL from environment variable
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-
     try {
-      // Now make the API call with the input that was entered
+      // Close any existing socket
+      if (activeSocket) {
+        activeSocket.close();
+        setActiveSocket(null);
+      }
+      
+      // Use API URL from environment variable
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      
+      // Submit the code to get an execution ID
       const submitResponse = await fetch(`${apiUrl}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          language: getLanguageFromExtension(activeFile.id.split('.').pop().toLowerCase()),
+          language: language,
           code: activeFile.content,
-          input: userInput
+          input: ""  // Explicitly passing empty input, no user input handling
         }),
       });
       
@@ -570,87 +593,167 @@ Happy coding!`;
       const { id } = await submitResponse.json();
       setTerminalOutput(prev => [...prev, { type: 'output', content: `Job submitted with ID: ${id}` }]);
       
-      // Step 2: Poll for status until completed or failed
-      let status = 'pending';
-      while (status !== 'completed' && status !== 'failed') {
-        // Add a small delay between polls
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      // Set active running file
+      setActiveRunningFile(activeFile.id);
+      
+      // Connect to WebSocket with the execution ID
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsBaseUrl = apiUrl.replace(/^https?:\/\//, '');
+      const wsUrl = `${wsProtocol}//${wsBaseUrl}/ws/terminal?id=${id}`;
+      
+      setTerminalOutput(prev => [...prev, { type: 'output', content: `Connecting to: ${wsUrl}` }]);
+      
+      // Create a new WebSocket
+      const newSocket = new WebSocket(wsUrl);
+      
+      // Set up event handlers
+      newSocket.onopen = () => {
+        console.log("WebSocket connected");
+        setTerminalOutput(prev => [...prev, { type: 'output', content: 'Connected to execution terminal' }]);
+        setIsRunning(true);
+      };
+      
+      newSocket.onmessage = (event) => {
+        console.log("WebSocket message received:", event.data);
+        setTerminalOutput(prev => [...prev, { type: 'output', content: event.data }]);
         
-        const statusResponse = await fetch(`${apiUrl}/status?id=${id}`);
-        if (!statusResponse.ok) {
-          throw new Error(`Status check failed: ${statusResponse.status}`);
+        // Check if this message is likely asking for input (prompt detection)
+        const isPrompt = 
+          event.data.includes("input") || 
+          event.data.includes("?") || 
+          event.data.endsWith(":") || 
+          event.data.endsWith("> ");
+          
+        if (isPrompt) {
+          console.log("Input prompt detected, focusing terminal");
+          // Force terminal to focus after a prompt is detected
+          setTimeout(() => {
+            document.querySelector('.panel-terminal')?.focus();
+          }, 100);
         }
+      };
+
+      // Add polling for job status
+      let statusCheckInterval;
+      if (id) {
+        // Start polling the status endpoint every 2 seconds
+        statusCheckInterval = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`${apiUrl}/status?id=${id}`);
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              
+              // If the process is completed or failed, stop polling and update UI
+              if (statusData.status === 'completed' || statusData.status === 'failed') {
+                clearInterval(statusCheckInterval);
+                console.log("Process status:", statusData.status);
+                
+                // Update the UI to show process is no longer running
+                setIsRunning(false);
+                
+                // Display the final result if WebSocket didn't capture it
+                if (statusData.output && statusData.output.length > 0) {
+                  setTerminalOutput(prev => {
+                    // Check if the output is already in the terminal
+                    const lastOutput = prev[prev.length - 1]?.content || "";
+                    if (!lastOutput.includes(statusData.output)) {
+                      return [...prev, { 
+                        type: 'output', 
+                        content: `\n[System] Final output:\n${statusData.output}` 
+                      }];
+                    }
+                    return prev;
+                  });
+                }
+                
+                // Close socket if it's still open
+                if (newSocket && newSocket.readyState === WebSocket.OPEN) {
+                  newSocket.close();
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Status check error:", error);
+          }
+        }, 2000);
         
-        const statusData = await statusResponse.json();
-        status = statusData.status;
-        
-        // Update terminal with status (for any status type)
-        setTerminalOutput(prev => {
-          // Update the last status message or add a new one
-          const hasStatus = prev.some(line => line.content.includes('Status:'));
-          if (hasStatus) {
-            return prev.map(line => 
-              line.content.includes('Status:') 
-                ? { ...line, content: `Status: ${status}` } 
-                : line
-            );
-          } else {
-            return [...prev, { type: 'output', content: `Status: ${status}` }];
+        // Clean up interval when component unmounts or when socket closes
+        newSocket.addEventListener('close', () => {
+          if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
           }
         });
       }
       
-      // Get the result for both completed and failed status
-      const resultResponse = await fetch(`${apiUrl}/result?id=${id}`);
-      if (!resultResponse.ok) {
-        throw new Error(`Result fetch failed: ${resultResponse.status}`);
-      }
+      newSocket.onclose = (event) => {
+        console.log("WebSocket closed:", event);
+        setIsRunning(false);
+        setActiveSocket(null);
+        
+        const reason = event.reason ? `: ${event.reason}` : '';
+        const code = event.code ? ` (code: ${event.code})` : '';
+        
+        setTerminalOutput(prev => [...prev, { 
+          type: 'warning', 
+          content: `Terminal connection closed${reason}${code}` 
+        }]);
+        
+        // Clean up interval
+        if (statusCheckInterval) {
+          clearInterval(statusCheckInterval);
+        }
+      };
       
-      const { output } = await resultResponse.json();
+      newSocket.onerror = (event) => {
+        console.error("WebSocket error:", event);
+        setTerminalOutput(prev => [...prev, { 
+          type: 'warning', 
+          content: `WebSocket error occurred` 
+        }]);
+      };
       
-      // Format and display output
-      const outputLines = output.split('\n').map(line => ({ 
-        type: status === 'failed' ? 'warning' : 'output', 
-        content: line 
-      }));
-      
-      setTerminalOutput(prev => [
-        ...prev,
-        { 
-          type: status === 'failed' ? 'warning' : 'output', 
-          content: status === 'failed' 
-            ? '------- EXECUTION FAILED -------' 
-            : '------- EXECUTION RESULT -------'
-        },
-        ...outputLines
-      ]);
-      
-      if (status === 'failed') {
-        console.error('Code execution failed:', output);
-      }
+      // Set the active socket after all handlers are defined
+      setActiveSocket(newSocket);
       
     } catch (error) {
+      console.error("Run code error:", error);
       setTerminalOutput(prev => [...prev, { type: 'warning', content: `Error: ${error.message}` }]);
-    } finally {
-      // Set running state to false
       setIsRunning(false);
+      
+      // Also add cleanup in the error handler
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+      }
     }
   };
-  
-  // Helper function to convert file extension to language identifier for API
-  const getLanguageFromExtension = (extension) => {
-    const languageMap = {
-      'java': 'java',
-      'c': 'c',
-      'cpp': 'cpp',
-      'py': 'python',
-      'js': 'javascript',
-      'jsx': 'javascript',
-      'ts': 'typescript',
-      'tsx': 'typescript'
-    };
+
+  // Update handleInputSubmit to ensure the input is sent properly
+  const handleInputSubmit = () => {
+    // Log more detail for debugging
+    console.log("Input submit called, active socket:", !!activeSocket, "userInput:", userInput);
     
-    return languageMap[extension] || extension;
+    if (!activeSocket || !userInput.trim()) {
+      console.warn("Cannot send input: No active socket or empty input");
+      return;
+    }
+    
+    try {
+      // Add the input to the terminal display
+      setTerminalOutput(prev => [...prev, { type: 'command', content: `> ${userInput}` }]);
+      
+      // Send the input via WebSocket with a newline character to ensure it's processed
+      console.log("Sending input:", userInput);
+      activeSocket.send(userInput + "\n");
+      
+      // Clear the input field
+      setUserInput("");
+    } catch (error) {
+      console.error("Error sending input:", error);
+      setTerminalOutput(prev => [...prev, { 
+        type: 'warning', 
+        content: `Error sending input: ${error.message}` 
+      }]);
+    }
   };
 
   // Update this function to also update parent state
@@ -834,18 +937,17 @@ Happy coding!`;
                 document.addEventListener("mouseup", onMouseUp);
               }}
             />
-            <Panel 
-              height={panelHeight}
-              terminalOutput={terminalOutput}
-              isRunning={isRunning}
-              waitingForInput={waitingForInput}
-              activeRunningFile={activeRunningFile}
-              initialTab="terminal"
-              onClose={togglePanel}
-              userInput={userInput}
-              onUserInputChange={setUserInput}
-              onInputSubmit={handleInputSubmit}
-            />
+           <Panel 
+            height={panelHeight}
+            terminalOutput={terminalOutput}
+            isRunning={isRunning}
+            activeRunningFile={activeRunningFile}
+            initialTab="terminal"
+            onClose={togglePanel}
+            userInput={userInput}
+            onUserInputChange={setUserInput}
+            onInputSubmit={handleInputSubmit}
+          />
           </>
         )}
 

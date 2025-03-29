@@ -1,6 +1,8 @@
 package service
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -8,25 +10,101 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/arnab-afk/monaco/model"
 	"github.com/arnab-afk/monaco/queue"
+	"github.com/gorilla/websocket"
 )
 
 // ExecutionService handles code execution for multiple languages
 type ExecutionService struct {
-	mu    sync.Mutex
-	queue *queue.JobQueue
+	mu                  sync.Mutex
+	queue               *queue.JobQueue
+	terminalConnections map[string][]*websocket.Conn // Map of executionID to WebSocket connections
+	execInputChannels   map[string]chan string       // Map of executionID to input channels
 }
 
 // NewExecutionService creates a new execution service
 func NewExecutionService() *ExecutionService {
 	log.Println("Initializing execution service with 3 concurrent workers")
 	return &ExecutionService{
-		queue: queue.NewJobQueue(35), // 3 concurrent executions max
+		queue:               queue.NewJobQueue(3), // 3 concurrent executions max
+		terminalConnections: make(map[string][]*websocket.Conn),
+		execInputChannels:   make(map[string]chan string),
+	}
+}
+
+// RegisterTerminalConnection registers a WebSocket connection for an execution
+func (s *ExecutionService) RegisterTerminalConnection(executionID string, conn *websocket.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.terminalConnections[executionID]; !exists {
+		s.terminalConnections[executionID] = make([]*websocket.Conn, 0)
+	}
+	s.terminalConnections[executionID] = append(s.terminalConnections[executionID], conn)
+	log.Printf("[WS-%s] Terminal connection registered, total connections: %d",
+		executionID, len(s.terminalConnections[executionID]))
+}
+
+// UnregisterTerminalConnection removes a WebSocket connection
+func (s *ExecutionService) UnregisterTerminalConnection(executionID string, conn *websocket.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	connections, exists := s.terminalConnections[executionID]
+	if !exists {
+		return
+	}
+
+	// Remove the specific connection
+	for i, c := range connections {
+		if c == conn {
+			s.terminalConnections[executionID] = append(connections[:i], connections[i+1:]...)
+			break
+		}
+	}
+
+	// If no more connections, clean up
+	if len(s.terminalConnections[executionID]) == 0 {
+		delete(s.terminalConnections, executionID)
+	}
+
+	log.Printf("[WS-%s] Terminal connection unregistered", executionID)
+}
+
+// SendOutputToTerminals sends output to all connected terminals for an execution
+func (s *ExecutionService) SendOutputToTerminals(executionID string, output string) {
+	s.mu.Lock()
+	connections := s.terminalConnections[executionID]
+	s.mu.Unlock()
+
+	for _, conn := range connections {
+		if err := conn.WriteMessage(websocket.TextMessage, []byte(output)); err != nil {
+			log.Printf("[WS-%s] Error sending to terminal: %v", executionID, err)
+			// Unregister this connection on error
+			s.UnregisterTerminalConnection(executionID, conn)
+		}
+	}
+}
+
+// SendInput sends user input to a running process
+func (s *ExecutionService) SendInput(executionID string, input string) {
+	s.mu.Lock()
+	inputChan, exists := s.execInputChannels[executionID]
+	s.mu.Unlock()
+
+	if exists {
+		select {
+		case inputChan <- input:
+			log.Printf("[WS-%s] Sent input to execution: %s", executionID, input)
+		default:
+			log.Printf("[WS-%s] Execution not ready for input", executionID)
+		}
+	} else {
+		log.Printf("[WS-%s] No input channel for execution", executionID)
 	}
 }
 
@@ -110,48 +188,123 @@ func (s *ExecutionService) executeLanguageSpecific(submission *model.CodeSubmiss
 func (s *ExecutionService) executeWithInput(cmd *exec.Cmd, input string, timeout time.Duration, submissionID string) ([]byte, error) {
 	log.Printf("[TIMEOUT-%s] Setting execution timeout: %v", submissionID, timeout)
 
-	// Set up input pipe if input is provided
-	if input != "" {
-		stdin, err := cmd.StdinPipe()
-		if err != nil {
-			log.Printf("[ERROR-%s] Failed to create stdin pipe: %v", submissionID, err)
-			return nil, err
-		}
-
-		// Write input in a goroutine to avoid blocking
-		go func() {
-			defer stdin.Close()
-			io.WriteString(stdin, input)
-		}()
-
-		log.Printf("[INPUT-%s] Providing input to process", submissionID)
+	// Create pipes for stdin, stdout, and stderr
+	stdin, stdinErr := cmd.StdinPipe()
+	if stdinErr != nil {
+		return nil, fmt.Errorf("failed to create stdin pipe: %v", stdinErr)
 	}
 
-	done := make(chan struct{})
-	var output []byte
-	var err error
+	stdout, stdoutErr := cmd.StdoutPipe()
+	if stdoutErr != nil {
+		return nil, fmt.Errorf("failed to create stdout pipe: %v", stdoutErr)
+	}
 
-	go func() {
-		log.Printf("[EXEC-%s] Starting command execution: %v", submissionID, cmd.Args)
-		output, err = cmd.CombinedOutput()
-		close(done)
+	stderr, stderrErr := cmd.StderrPipe()
+	if stderrErr != nil {
+		return nil, fmt.Errorf("failed to create stderr pipe: %v", stderrErr)
+	}
+
+	// Create an input channel and register it
+	inputChan := make(chan string, 10)
+	s.mu.Lock()
+	s.execInputChannels[submissionID] = inputChan
+	s.mu.Unlock()
+
+	// Clean up the input channel when done
+	defer func() {
+		s.mu.Lock()
+		delete(s.execInputChannels, submissionID)
+		s.mu.Unlock()
+		close(inputChan)
 	}()
 
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start process: %v", err)
+	}
+
+	// Create a buffer to collect all output
+	var outputBuffer bytes.Buffer
+
+	// Handle stdout in a goroutine
+	go func() {
+		buffer := make([]byte, 1024)
+		for {
+			n, err := stdout.Read(buffer)
+			if n > 0 {
+				data := buffer[:n]
+				outputBuffer.Write(data)
+				// Send real-time output to connected terminals
+				s.SendOutputToTerminals(submissionID, string(data))
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	// Handle stderr in a goroutine
+	go func() {
+		buffer := make([]byte, 1024)
+		for {
+			n, err := stderr.Read(buffer)
+			if n > 0 {
+				data := buffer[:n]
+				outputBuffer.Write(data)
+				// Send real-time output to connected terminals
+				s.SendOutputToTerminals(submissionID, string(data))
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	// Write initial input if provided
+	if input != "" {
+		io.WriteString(stdin, input+"\n")
+	}
+
+	// Process is in a separate context, but it needs to be killed if timeout occurs
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle additional input from WebSocket in a goroutine
+	go func() {
+		for {
+			select {
+			case additionalInput, ok := <-inputChan:
+				if !ok {
+					return
+				}
+				log.Printf("[INPUT-%s] Received input from WebSocket: %s", submissionID, additionalInput)
+				io.WriteString(stdin, additionalInput+"\n")
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Wait for the command to complete with timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	// Wait for completion or timeout
 	select {
 	case <-time.After(timeout):
+		cancel() // Stop the input handler
 		log.Printf("[TIMEOUT-%s] Execution timed out after %v seconds", submissionID, timeout.Seconds())
 		if err := cmd.Process.Kill(); err != nil {
 			log.Printf("[TIMEOUT-%s] Failed to kill process: %v", submissionID, err)
-			return nil, fmt.Errorf("timeout reached but failed to kill process: %v", err)
 		}
-		return nil, fmt.Errorf("execution timed out after %v seconds", timeout.Seconds())
-	case <-done:
-		if err != nil {
-			log.Printf("[EXEC-%s] Command execution failed: %v", submissionID, err)
-		} else {
-			log.Printf("[EXEC-%s] Command execution completed successfully", submissionID)
-		}
-		return output, err
+		s.SendOutputToTerminals(submissionID, fmt.Sprintf("\n[System] Process killed after timeout of %v seconds", timeout.Seconds()))
+		return outputBuffer.Bytes(), fmt.Errorf("execution timed out after %v seconds", timeout.Seconds())
+	case err := <-done:
+		cancel() // Stop the input handler
+		s.SendOutputToTerminals(submissionID, "\n[System] Process completed")
+		return outputBuffer.Bytes(), err
 	}
 }
 
@@ -169,15 +322,9 @@ func (s *ExecutionService) executePython(submission *model.CodeSubmission) {
 		"python:3.9", "python", "-c", submission.Code)
 
 	log.Printf("[PYTHON-%s] Executing Python code with timeout: 10s", submission.ID)
-	var output []byte
-	var err error
 
-	if submission.Input != "" {
-		cmd.Stdin = strings.NewReader(submission.Input)
-		output, err = cmd.CombinedOutput()
-	} else {
-		output, err = s.executeWithTimeout(cmd, 10*time.Second, submission.ID)
-	}
+	// Use the enhanced executeWithInput method for all executions
+	output, err := s.executeWithInput(cmd, submission.Input, 100*time.Second, submission.ID)
 
 	elapsed := time.Since(startTime)
 	log.Printf("[PYTHON-%s] Python execution completed in %v", submission.ID, elapsed)
@@ -255,7 +402,7 @@ func (s *ExecutionService) executeJava(submission *model.CodeSubmission) {
 
 	log.Printf("[JAVA-%s] Compilation successful", submission.ID)
 
-	// Now run the compiled class
+	// Now run the compiled class with the enhanced executeWithInput method
 	runCmd := exec.Command("docker", "run", "--rm", "-i",
 		"--network=none",       // No network access
 		"--memory=400m",        // Memory limit
@@ -267,17 +414,8 @@ func (s *ExecutionService) executeJava(submission *model.CodeSubmission) {
 		"-Xverify:none", "-Xms64m", "-Xmx256m",
 		"-cp", "/code", className)
 
-	// Add input if provided
-	var output []byte
-
-	if submission.Input != "" {
-		log.Printf("[JAVA-%s] Executing Java code with input", submission.ID)
-		runCmd.Stdin = strings.NewReader(submission.Input)
-		output, err = runCmd.CombinedOutput()
-	} else {
-		log.Printf("[JAVA-%s] Executing Java code without input", submission.ID)
-		output, err = s.executeWithTimeout(runCmd, 15*time.Second, submission.ID)
-	}
+	log.Printf("[JAVA-%s] Executing Java code", submission.ID)
+	output, err := s.executeWithInput(runCmd, submission.Input, 15*time.Second, submission.ID)
 
 	elapsed := time.Since(startTime)
 	log.Printf("[JAVA-%s] Java execution completed in %v", submission.ID, elapsed)
@@ -327,7 +465,7 @@ func (s *ExecutionService) executeC(submission *model.CodeSubmission) {
 
 	log.Printf("[C-%s] Compilation successful", submission.ID)
 
-	// Run C executable
+	// Run C executable using executeWithInput to support WebSockets
 	runCmd := exec.Command("docker", "run", "--rm", "-i",
 		"--network=none",       // No network access
 		"--memory=100m",        // Memory limit
@@ -336,17 +474,8 @@ func (s *ExecutionService) executeC(submission *model.CodeSubmission) {
 		"-v", tempDir+":/code", // Mount code directory
 		"gcc:latest", "/code/solution")
 
-	// Add input if provided
-	var output []byte
-	// Don't redeclare err here - use the existing variable
-	if submission.Input != "" {
-		log.Printf("[C-%s] Executing C code with input", submission.ID)
-		runCmd.Stdin = strings.NewReader(submission.Input)
-		output, err = runCmd.CombinedOutput() // Use the existing err variable
-	} else {
-		log.Printf("[C-%s] Executing C code without input", submission.ID)
-		output, err = s.executeWithTimeout(runCmd, 10*time.Second, submission.ID) // Use the existing err variable
-	}
+	log.Printf("[C-%s] Executing C code", submission.ID)
+	output, err := s.executeWithInput(runCmd, submission.Input, 30*time.Second, submission.ID)
 
 	elapsed := time.Since(startTime)
 	log.Printf("[C-%s] C execution completed in %v", submission.ID, elapsed)
@@ -396,7 +525,7 @@ func (s *ExecutionService) executeCpp(submission *model.CodeSubmission) {
 
 	log.Printf("[CPP-%s] Compilation successful", submission.ID)
 
-	// Run C++ executable
+	// Run C++ executable using executeWithInput to support WebSockets
 	runCmd := exec.Command("docker", "run", "--rm", "-i",
 		"--network=none",       // No network access
 		"--memory=100m",        // Memory limit
@@ -405,16 +534,8 @@ func (s *ExecutionService) executeCpp(submission *model.CodeSubmission) {
 		"-v", tempDir+":/code", // Mount code directory
 		"gcc:latest", "/code/solution")
 
-	// Add input if provided
-	var output []byte
-	if submission.Input != "" {
-		log.Printf("[CPP-%s] Executing C++ code with input", submission.ID)
-		runCmd.Stdin = strings.NewReader(submission.Input)
-		output, err = runCmd.CombinedOutput()
-	} else {
-		log.Printf("[CPP-%s] Executing C++ code without input", submission.ID)
-		output, err = s.executeWithTimeout(runCmd, 10*time.Second, submission.ID)
-	}
+	log.Printf("[CPP-%s] Executing C++ code", submission.ID)
+	output, err := s.executeWithInput(runCmd, submission.Input, 100*time.Second, submission.ID)
 
 	elapsed := time.Since(startTime)
 	log.Printf("[CPP-%s] C++ execution completed in %v", submission.ID, elapsed)

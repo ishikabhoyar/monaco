@@ -418,6 +418,16 @@ body {
   height: 100%;
 }
 
+.panel-terminal {
+  padding: 8px;
+  font-family: monospace;
+  overflow-y: auto;
+  height: calc(100% - 36px); /* Adjust based on your header height */
+  background-color: #1e1e1e;
+  color: #ddd;
+  outline: none; /* Remove focus outline */
+}
+
 .panel-terminal .terminal-line {
   white-space: pre-wrap;
   margin-bottom: 3px;
@@ -426,22 +436,20 @@ body {
 .terminal-line {
   white-space: pre-wrap;
   line-height: 1.5;
+  margin-bottom: 2px;
 }
 
 .terminal-prompt {
-  color: #0f0;
+  color: #0a84ff;
   margin-right: 8px;
-  color: #569cd6;
-  margin-right: 6px;
 }
 
 .terminal-output {
-  color: #888888;
-  color: #cccccc;
+  color: #ddd;
 }
 
 .terminal-warning {
-  color: #ddb100;
+  color: #ffa500;
 }
 
 .output-line {
@@ -463,9 +471,8 @@ body {
 }
 
 @keyframes blink {
-  50% {
-    opacity: 0;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .panel-empty-message {
@@ -964,9 +971,8 @@ body {
 }
 
 @keyframes blink {
-  50% {
-    opacity: 0;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 /* Make sure the monaco container adjusts when terminal is shown */
