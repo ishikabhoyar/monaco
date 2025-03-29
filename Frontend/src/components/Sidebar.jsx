@@ -31,10 +31,10 @@ const Sidebar = ({
   const renderExplorer = () => {
     const renderFileTree = (structure, path = "") => {
       if (!structure) return null;
-
+  
       return Object.entries(structure).map(([name, item]) => {
         const currentPath = path ? `${path}/${name}` : name;
-
+  
         if (item.type === "folder") {
           const isExpanded = expandedFolders[currentPath];
           return (
@@ -74,21 +74,6 @@ const Sidebar = ({
                       <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
                   )}
-                </span>
-                <span className="folder-icon">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#75beff"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
                 </span>
                 <span className="folder-name">{name}</span>
               </div>
@@ -137,7 +122,7 @@ const Sidebar = ({
         }
       });
     };
-
+  
     return (
       <div className="sidebar-section">
         <div className="sidebar-title">
@@ -184,7 +169,6 @@ const Sidebar = ({
       </div>
     );
   };
-
   const getFileIcon = (fileName) => {
     const extension = fileName.split('.').pop().toLowerCase();
     
