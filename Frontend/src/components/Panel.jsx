@@ -173,7 +173,7 @@ const Panel = ({
         ))}
 
         <div className="panel-actions">
-          <button className="panel-action-btn">
+          {/* <button className="panel-action-btn">
             <span className="current-terminal">node - frontend</span>
             <ChevronDown size={16} />
           </button>
@@ -182,7 +182,7 @@ const Panel = ({
           </button>
           <button className="panel-action-btn">
             <Maximize2 size={16} />
-          </button>
+          </button> */}
           <button className="panel-close-btn" onClick={onClose}>
             <X size={16} />
           </button>
