@@ -171,7 +171,36 @@ const Sidebar = ({
   };
   const getFileIcon = (fileName) => {
     const extension = fileName.split('.').pop().toLowerCase();
-    
+  
+    if (fileName.toLowerCase() === 'readme.md') {
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#007acc" /* Blue color for the circle */
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" fill="none" stroke="#007acc" />
+          <text
+            x="12"
+            y="15"
+            textAnchor="middle"
+            fontSize="10"
+            fill="#007acc"
+            fontFamily="Arial, sans-serif"
+            fontWeight="bold"
+          >
+            i
+          </text>
+        </svg>
+      );
+    }
+  
     if (['jsx', 'js', 'ts', 'tsx'].includes(extension)) {
       return (
         <svg
@@ -224,7 +253,7 @@ const Sidebar = ({
         </svg>
       );
     }
-    
+  
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
