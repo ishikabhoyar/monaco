@@ -1,13 +1,24 @@
-# VSCode Clone with React and Vite
+# VS Code Clone Project
 
-This project is a VSCode-like code editor built with React and Vite. It features a customizable UI with an activity bar, sidebar, editor area, panel, and status bar, mimicking the look and feel of Visual Studio Code.
+## Authors
+- Arnab Bhowmik
+- Ishika Bhoyar
 
-## Features
+## Description
+This project is a VS Code Clone built with React and Monaco Editor. It features a file tree navigation, tab management, code editing with syntax highlighting, and a terminal panel for running code. It mimics the core functionalities of Visual Studio Code in a browser-based environment.
 
-- **Activity Bar**: Switch between different views like Explorer, Search, Source Control, etc.
-- **Sidebar**: Displays file explorer, search results, and source control information.
-- **Editor Area**: Code editor with syntax highlighting and multiple tabs.
-- **Panel**: Terminal, Problems, and Output views.
-- **Status Bar**: Displays status information and provides quick actions.
+## Frontend Functionalities
+- Built with React and Monaco Editor.
+- File tree navigation for managing files and folders.
+- Tab management for opening multiple files simultaneously.
+- Code editing with syntax highlighting and language support.
+- Terminal panel for running code and viewing output.
+- Persistent file structure and content using localStorage.
 
-## Project Structure
+## Backend Functionalities
+- Built with Go and Docker for secure code execution.
+- Supports multiple programming languages (Python, Java, C/C++).
+- Executes code in isolated Docker containers with resource limits.
+- RESTful API for submitting code, checking status, and retrieving results.
+- Job queue system for managing concurrent executions.
+- Enforces timeouts and resource limits for security and performance.
