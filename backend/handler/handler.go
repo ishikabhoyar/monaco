@@ -2,12 +2,15 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/arnab-afk/monaco/model"
 	"github.com/arnab-afk/monaco/service"
+	"github.com/gorilla/websocket"
 )
 
 // Handler manages HTTP requests for code submissions
@@ -177,6 +180,63 @@ func (h *Handler) QueueStatsHandler(w http.ResponseWriter, r *http.Request) {
 		"queue_stats": stats,
 		"submissions": len(h.submissions),
 	})
+}
+
+// ConnectTerminal connects a WebSocket to a running execution
+func (h *Handler) ConnectTerminal(conn *websocket.Conn, executionID string) {
+	// Get submission from storage
+	h.mu.Lock()
+	submission, found := h.submissions[executionID]
+	status := "not found"
+	if found {
+		status = submission.Status
+	}
+	h.mu.Unlock()
+
+	log.Printf("[WS-%s] Terminal connection request, submission status: %s", executionID, status)
+
+	if !found {
+		log.Printf("[WS-%s] Execution not found", executionID)
+		conn.WriteMessage(websocket.TextMessage, []byte("Execution not found"))
+		conn.Close()
+		return
+	}
+
+	// If execution is already completed, send stored output and close
+	if submission.Status == "completed" || submission.Status == "failed" {
+		log.Printf("[WS-%s] Execution already %s, sending stored output (length: %d)",
+			executionID, submission.Status, len(submission.Output))
+		conn.WriteMessage(websocket.TextMessage, []byte(submission.Output))
+		conn.Close()
+		return
+	}
+
+	log.Printf("[WS-%s] Registering connection for real-time updates, current status: %s",
+		executionID, submission.Status)
+
+	// Register this connection with the execution service for real-time updates
+	h.executionService.RegisterTerminalConnection(executionID, conn)
+
+	// Send initial connection confirmation
+	initialMsg := fmt.Sprintf("[System] Connected to process (ID: %s, Status: %s)\n",
+		executionID, submission.Status)
+	conn.WriteMessage(websocket.TextMessage, []byte(initialMsg))
+
+	// Handle incoming messages from the terminal (for stdin)
+	go func() {
+		for {
+			_, message, err := conn.ReadMessage()
+			if err != nil {
+				log.Printf("[WS-%s] Read error: %v", executionID, err)
+				h.executionService.UnregisterTerminalConnection(executionID, conn)
+				break
+			}
+
+			log.Printf("[WS-%s] Received input from client: %s", executionID, string(message))
+			// Send input to the execution if it's waiting for input
+			h.executionService.SendInput(executionID, string(message))
+		}
+	}()
 }
 
 // generateID creates a unique ID for submissions

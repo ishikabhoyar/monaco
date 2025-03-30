@@ -1,8 +1,7 @@
-import React from "react";
-import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { X, Maximize2, ChevronDown, Plus } from "lucide-react";
 
-const Panel = ({ 
+const Panel = ({
   height,
   terminalOutput = [],
   isRunning = false,
@@ -12,85 +11,135 @@ const Panel = ({
   onClose,
   userInput = "",
   onUserInputChange,
-  onInputSubmit
+  onInputSubmit,
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const terminalRef = useRef(null);
+  const [inputBuffer, setInputBuffer] = useState("");
 
-  // Set active tab when initialTab changes
+  // Update active tab when initialTab changes
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const renderTerminal = () => {
-    return (
-      <div className="panel-terminal">
-        {terminalOutput.length > 0 ? (
-          // Render output from EditorArea when available
-          <>
-            {terminalOutput.map((line, index) => (
-              <div key={index} className={`terminal-line ${line.type === 'warning' ? 'terminal-warning' : 'terminal-output'}`}>
-                {line.type === 'command' ? <span className="terminal-prompt">$</span> : ''} {line.content}
+  // Auto-scroll terminal to the bottom when content changes
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [terminalOutput]);
+
+  // Handle keyboard input for the terminal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!isRunning) return;
+
+      if (e.key === "Enter") {
+        if (inputBuffer.trim() && onInputSubmit) {
+          e.preventDefault();
+          // Update parent's userInput state directly and call submit in the same function
+          // instead of using setTimeout which creates a race condition
+          onUserInputChange(inputBuffer); 
+          onInputSubmit(inputBuffer); // Pass inputBuffer directly to avoid race condition
+          setInputBuffer("");
+        }
+      } else if (e.key === "Backspace") {
+        setInputBuffer((prev) => prev.slice(0, -1));
+      } else if (e.key.length === 1) {
+        setInputBuffer((prev) => prev + e.key);
+      }
+    };
+
+    const terminalElement = terminalRef.current;
+    terminalElement?.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      terminalElement?.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isRunning, inputBuffer, onInputSubmit, onUserInputChange]);
+
+  // Render the terminal tab
+  const renderTerminal = () => (
+    <div
+      className="panel-terminal"
+      ref={terminalRef}
+      tabIndex={0} // Make div focusable
+      onClick={() => terminalRef.current?.focus()} // Focus when clicked
+    >
+      {terminalOutput.length > 0 ? (
+        <>
+          {terminalOutput.map((line, index) => {
+            const typeClass =
+              line.type === "warning"
+                ? "terminal-warning"
+                : line.type === "error"
+                ? "terminal-error"
+                : "terminal-output";
+
+            return (
+              <div key={index} className={`terminal-line ${typeClass}`}>
+                {line.timestamp && (
+                  <span className="terminal-timestamp">{line.timestamp} </span>
+                )}
+                {line.type === "command" && <span className="terminal-prompt">$</span>}
+                {line.content}
               </div>
-            ))}
-            {waitingForInput && (
-              <div className="terminal-line">
-                <span className="terminal-prompt">Input:</span>
-                <input
-                  type="text"
-                  className="terminal-input"
-                  value={userInput}
-                  onChange={(e) => onUserInputChange && onUserInputChange(e.target.value)}
-                  placeholder="Enter input for your program here..."
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && onInputSubmit) {
-                      onInputSubmit();
-                    }
-                  }}
-                  autoFocus
-                />
-              </div>
-            )}
-          </>
-        ) : (
-          // Default terminal content when no output
-          <>
-            <div className="terminal-line">
-              <span className="terminal-prompt">$</span> npm start
+            );
+          })}
+
+          {isRunning && (
+            <div className="terminal-line terminal-input-line">
+              <span className="terminal-prompt">$</span> {inputBuffer}
+              <span className="terminal-cursor"></span>
             </div>
-            <div className="terminal-line terminal-output">Starting the development server...</div>
-            <div className="terminal-line terminal-output">Compiled successfully!</div>
-            <div className="terminal-line terminal-output">You can now view vscode-clone in the browser.</div>
-            <div className="terminal-line terminal-output">Local: http://localhost:3000</div>
-            <div className="terminal-line terminal-output">On Your Network: http://192.168.1.5:3000</div>
-            <div className="terminal-line">
-              <span className="terminal-prompt">$</span>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
+          )}
+        </>
+      ) : (
+        <div className="terminal-line">
+          <span className="terminal-prompt">$</span>
+          <span className="terminal-cursor"></span>
+        </div>
+      )}
+    </div>
+  );
 
-  const renderProblems = () => {
-    return (
-      <div className="panel-problems">
-        <div className="panel-empty-message">No problems have been detected in the workspace.</div>
-      </div>
-    );
-  };
+  // Render other tabs
+  const renderProblems = () => (
+    <div className="panel-problems">
+      <div className="panel-empty-message">No problems have been detected in the workspace.</div>
+    </div>
+  );
 
-  const renderOutput = () => {
-    return (
-      <div className="panel-output">
-        <div className="output-line">[Extension Host] Extension host started.</div>
-        <div className="output-line">[Language Server] Language server started.</div>
-        {activeRunningFile && (
-          <div className="output-line">[Running] {activeRunningFile}</div>
-        )}
-      </div>
-    );
-  };
+  const renderOutput = () => (
+    <div className="panel-output">
+      <div className="output-line">[Extension Host] Extension host started.</div>
+      <div className="output-line">[Language Server] Language server started.</div>
+      {activeRunningFile && (
+        <div className="output-line">[Running] {activeRunningFile}</div>
+      )}
+    </div>
+  );
 
+  const renderDebugConsole = () => (
+    <div className="panel-debug-console">
+      <div className="debug-line">Debug session not yet started.</div>
+      <div className="debug-line">Press F5 to start debugging.</div>
+    </div>
+  );
+
+  const renderPorts = () => (
+    <div className="panel-ports">
+      <div className="ports-line">No forwarded ports detected.</div>
+    </div>
+  );
+
+  const renderComments = () => (
+    <div className="panel-comments">
+      <div className="comments-line">No comments have been added to this workspace.</div>
+    </div>
+  );
+
+  // Get content for the active tab
   const getTabContent = () => {
     switch (activeTab) {
       case "terminal":
@@ -99,6 +148,12 @@ const Panel = ({
         return renderProblems();
       case "output":
         return renderOutput();
+      case "debug":
+        return renderDebugConsole();
+      case "ports":
+        return renderPorts();
+      case "comments":
+        return renderComments();
       default:
         return <div>Unknown tab</div>;
     }
@@ -107,76 +162,29 @@ const Panel = ({
   return (
     <div className="panel" style={{ height: `${height}px` }}>
       <div className="panel-tabs">
-        <div
-          className={`panel-tab ${activeTab === "problems" ? "active" : ""}`}
-          onClick={() => setActiveTab("problems")}
-        >
-          <span className="tab-icon">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="8" x2="12" y2="12"></line>
-              <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-          </span>
-          <span className="tab-name">Problems</span>
-        </div>
-        <div className={`panel-tab ${activeTab === "output" ? "active" : ""}`} onClick={() => setActiveTab("output")}>
-          <span className="tab-icon">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </span>
-          <span className="tab-name">Output</span>
-        </div>
-        <div
-          className={`panel-tab ${activeTab === "terminal" ? "active" : ""}`}
-          onClick={() => setActiveTab("terminal")}
-        >
-          <span className="tab-icon">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="4 17 10 11 4 5"></polyline>
-              <line x1="12" y1="19" x2="20" y2="19"></line>
-            </svg>
-          </span>
-          <span className="tab-name">Terminal</span>
-        </div>
+        {["problems", "output", "debug", "terminal", "ports", "comments"].map((tab) => (
+          <div
+            key={tab}
+            className={`panel-tab ${activeTab === tab ? "active" : ""}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            <span className="tab-name">{tab.toUpperCase()}</span>
+          </div>
+        ))}
 
-        {/* Add close button */}
         <div className="panel-actions">
+          {/* <button className="panel-action-btn">
+            <span className="current-terminal">node - frontend</span>
+            <ChevronDown size={16} />
+          </button>
+          <button className="panel-action-btn">
+            <Plus size={16} />
+          </button>
+          <button className="panel-action-btn">
+            <Maximize2 size={16} />
+          </button> */}
           <button className="panel-close-btn" onClick={onClose}>
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
       </div>
@@ -187,4 +195,3 @@ const Panel = ({
 };
 
 export default Panel;
-
