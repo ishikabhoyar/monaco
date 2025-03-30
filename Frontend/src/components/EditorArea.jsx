@@ -168,6 +168,31 @@ const EditorArea = ({
     };
   }, []);
 
+  // Add interval to poll execution status
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+      // Poll execution status
+      if (activeSocket && activeRunningFile) {
+        // Check if socket is still connected
+        if (activeSocket.readyState !== WebSocket.OPEN) {
+          console.warn("Socket not in OPEN state:", activeSocket.readyState);
+          setTerminalOutput(prev => [...prev, { 
+            type: 'warning', 
+            content: `Terminal connection lost, attempting to reconnect...` 
+          }]);
+          // Could implement reconnection logic here
+        }
+      }
+    }, 5000);
+
+    // Clean up interval when component unmounts
+    return () => {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+    };
+  }, [activeSocket, activeRunningFile]);
+
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
   };
@@ -738,22 +763,44 @@ This project is a VS Code Clone built with React and Monaco Editor. It features 
   };
 
   // Update handleInputSubmit to ensure the input is sent properly
-  const handleInputSubmit = () => {
-    // Log more detail for debugging
-    console.log("Input submit called, active socket:", !!activeSocket, "userInput:", userInput);
+  const handleInputSubmit = (input) => {
+    // Use the direct input parameter instead of relying on userInput state
+    const textToSend = input || userInput;
     
-    if (!activeSocket || !userInput.trim()) {
-      console.warn("Cannot send input: No active socket or empty input");
+    console.log("Input submit called, active socket state:", 
+      activeSocket ? activeSocket.readyState : "no socket", 
+      "input:", textToSend);
+    
+    if (!activeSocket) {
+      console.warn("Cannot send input: No active socket");
+      setTerminalOutput(prev => [...prev, { 
+        type: 'warning', 
+        content: `Cannot send input: No active connection` 
+      }]);
+      return;
+    }
+    
+    if (activeSocket.readyState !== WebSocket.OPEN) {
+      console.warn("Socket not in OPEN state:", activeSocket.readyState);
+      setTerminalOutput(prev => [...prev, { 
+        type: 'warning', 
+        content: `Cannot send input: Connection not open (state: ${activeSocket.readyState})` 
+      }]);
+      return;
+    }
+    
+    if (!textToSend.trim()) {
+      console.warn("Cannot send empty input");
       return;
     }
     
     try {
       // Add the input to the terminal display
-      setTerminalOutput(prev => [...prev, { type: 'command', content: `> ${userInput}` }]);
+      setTerminalOutput(prev => [...prev, { type: 'command', content: `> ${textToSend}` }]);
       
-      // Send the input via WebSocket with a newline character to ensure it's processed
-      console.log("Sending input:", userInput);
-      activeSocket.send(userInput + "\n");
+      // Send the input via WebSocket with a newline character
+      console.log("Sending input:", textToSend);
+      activeSocket.send(textToSend + "\n");
       
       // Clear the input field
       setUserInput("");

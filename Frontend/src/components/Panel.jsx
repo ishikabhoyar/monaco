@@ -37,11 +37,11 @@ const Panel = ({
       if (e.key === "Enter") {
         if (inputBuffer.trim() && onInputSubmit) {
           e.preventDefault();
-          onUserInputChange(inputBuffer);
-          setTimeout(() => {
-            onInputSubmit();
-            setInputBuffer("");
-          }, 10);
+          // Update parent's userInput state directly and call submit in the same function
+          // instead of using setTimeout which creates a race condition
+          onUserInputChange(inputBuffer); 
+          onInputSubmit(inputBuffer); // Pass inputBuffer directly to avoid race condition
+          setInputBuffer("");
         }
       } else if (e.key === "Backspace") {
         setInputBuffer((prev) => prev.slice(0, -1));
