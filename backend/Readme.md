@@ -20,7 +20,7 @@
 Monaco is a secure, containerized code execution backend service designed to run user-submitted code in multiple programming languages. It features a job queue system to manage execution resources, containerized execution environments for security, and a RESTful API for submission and monitoring.
 
 **Key Features:**
-- Multi-language support (Python, Java, C, C++)
+- Multi-language support (Python, JavaScript, Go, Java, C, C++)
 - Secure containerized execution using Docker
 - Resource limiting to prevent abuse
 - Job queuing for managing concurrent executions
@@ -34,10 +34,10 @@ Monaco is a secure, containerized code execution backend service designed to run
 
 Monaco follows a layered architecture with the following key components:
 
-1. **HTTP Handlers** (handler package) - Processes incoming HTTP requests
-2. **Execution Service** (service package) - Manages code execution in containers
-3. **Job Queue** (queue package) - Controls concurrent execution
-4. **Data Models** (model package) - Defines data structures
+1. **HTTP Handlers** (internal/api/handlers) - Processes incoming HTTP requests
+2. **Execution Service** (internal/executor) - Manages code execution in containers
+3. **Job Queue** (internal/queue) - Controls concurrent execution
+4. **Data Models** (internal/models) - Defines data structures
 
 ### Request Flow
 
@@ -60,10 +60,12 @@ Client Request → HTTP Handlers → Execution Service → Job Queue → Docker 
 
 ### Prerequisites
 
-- Go 1.22+ 
+- Go 1.22+
 - Docker Engine
 - Docker images for supported languages:
   - `python:3.9`
+  - `node:18-alpine`
+  - `golang:1.22-alpine`
   - `eclipse-temurin:11-jdk-alpine`
   - `gcc:latest`
 
@@ -82,7 +84,7 @@ Client Request → HTTP Handlers → Execution Service → Job Queue → Docker 
 
 3. Build the application:
    ```bash
-   go build -o monaco main.go
+   go build -o monaco ./cmd/server
    ```
 
 4. Run the service:
@@ -103,7 +105,7 @@ Submits code for execution.
 **Request Body:**
 ```json
 {
-  "language": "python",  // Required: "python", "java", "c", or "cpp"
+  "language": "python",  // Required: "python", "javascript", "go", "java", "c", or "cpp"
   "code": "print('Hello, World!')",  // Required: source code to execute
   "input": "optional input string"  // Optional: input to stdin
 }
@@ -127,7 +129,7 @@ Checks the status of a submission.
 **Response:**
 ```json
 {
-  "id": "6423259c-ee14-c5aa-1c90-d5e989f92aa1", 
+  "id": "6423259c-ee14-c5aa-1c90-d5e989f92aa1",
   "status": "completed",  // "pending", "queued", "running", "completed", "failed"
   "queuedAt": "2025-03-25T14:30:00Z",
   "startedAt": "2025-03-25T14:30:01Z",  // Only present if status is "running", "completed", or "failed"
@@ -255,6 +257,17 @@ The queue tracks and reports:
 - **Version**: Python 3.9
 - **Input Handling**: Direct stdin piping
 - **Limitations**: No file I/O, no package imports outside standard library
+
+### JavaScript
+- **Version**: Node.js 18 (Alpine)
+- **Input Handling**: File-based input redirection
+- **Limitations**: No file I/O, no package imports outside standard library
+
+### Go
+- **Version**: Go 1.22 (Alpine)
+- **Compilation**: Standard Go build process
+- **Input Handling**: Direct stdin piping
+- **Limitations**: No file I/O, no external dependencies
 
 ### Java
 - **Version**: Java 11 (Eclipse Temurin)
