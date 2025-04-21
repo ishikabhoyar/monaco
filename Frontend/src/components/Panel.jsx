@@ -2,7 +2,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 
-const Panel = ({ 
+const Panel = ({
   height,
   terminalOutput = [],
   isRunning = false,
@@ -28,26 +28,35 @@ const Panel = ({
           // Render output from EditorArea when available
           <>
             {terminalOutput.map((line, index) => (
-              <div key={index} className={`terminal-line ${line.type === 'warning' ? 'terminal-warning' : 'terminal-output'}`}>
-                {line.type === 'command' ? <span className="terminal-prompt">$</span> : ''} {line.content}
+              <div key={index} className={`terminal-line ${line.type === 'warning' ? 'terminal-warning' : line.type === 'input' ? 'terminal-input-line' : 'terminal-output'}`}>
+                {line.type === 'command' ? <span className="terminal-prompt">$</span> : ''}
+                {line.type === 'input' ? <span className="terminal-input-marker">[Input]</span> : ''}
+                {line.content}
               </div>
             ))}
             {waitingForInput && (
-              <div className="terminal-line">
-                <span className="terminal-prompt">Input:</span>
-                <input
-                  type="text"
-                  className="terminal-input"
-                  value={userInput}
-                  onChange={(e) => onUserInputChange && onUserInputChange(e.target.value)}
-                  placeholder="Enter input for your program here..."
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && onInputSubmit) {
-                      onInputSubmit();
-                    }
-                  }}
-                  autoFocus
-                />
+              <div className="terminal-line terminal-input-container">
+                <div className="terminal-input-header">
+                  <span className="terminal-input-marker">Input Required:</span>
+                </div>
+                <div className="terminal-input-wrapper">
+                  <input
+                    type="text"
+                    className="terminal-input"
+                    value={userInput}
+                    onChange={(e) => onUserInputChange && onUserInputChange(e.target.value)}
+                    placeholder="Enter input for your program here..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && onInputSubmit) {
+                        onInputSubmit();
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+                <div className="terminal-input-help">
+                  Press Enter to submit input
+                </div>
               </div>
             )}
           </>

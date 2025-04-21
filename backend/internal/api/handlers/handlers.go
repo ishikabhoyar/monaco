@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -144,6 +143,7 @@ func (h *Handler) ResultHandler(w http.ResponseWriter, r *http.Request) {
 		"status":   submission.Status,
 		"language": submission.Language,
 		"output":   submission.Output,
+		"input":    submission.Input,
 	}
 
 	// Add error information if available
@@ -188,6 +188,55 @@ func (h *Handler) QueueStatsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// SubmitInputHandler handles interactive input submission
+func (h *Handler) SubmitInputHandler(w http.ResponseWriter, r *http.Request) {
+	// Only allow POST method
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse the request body
+	var inputRequest struct {
+		ID    string `json:"id"`
+		Input string `json:"input"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&inputRequest); err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate the request
+	if inputRequest.ID == "" {
+		http.Error(w, "ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get the submission from the map
+	h.mu.Lock()
+	submission, exists := h.submissions[inputRequest.ID]
+	h.mu.Unlock()
+
+	if !exists {
+		http.Error(w, "Submission not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if the submission is waiting for input
+	if submission.Status != "waiting_for_input" {
+		http.Error(w, "Submission is not waiting for input", http.StatusBadRequest)
+		return
+	}
+
+	// Send the input to the execution service
+	h.executionService.SubmitInput(submission, inputRequest.Input)
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "input_submitted"})
 }
 
 // HealthCheckHandler handles health check requests

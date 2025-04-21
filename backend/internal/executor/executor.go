@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/arnab-afk/monaco/internal/models"
@@ -19,6 +20,9 @@ import (
 // ExecutionService manages code execution
 type ExecutionService struct {
 	queue *queue.JobQueue
+	mu    sync.Mutex
+	// Map of submission ID to input channel for interactive programs
+	inputChannels map[string]chan string
 }
 
 // CodeExecutionJob represents a code execution job
@@ -30,7 +34,8 @@ type CodeExecutionJob struct {
 // NewExecutionService creates a new execution service
 func NewExecutionService() *ExecutionService {
 	return &ExecutionService{
-		queue: queue.NewJobQueue(5), // 5 concurrent workers
+		queue:         queue.NewJobQueue(5), // 5 concurrent workers
+		inputChannels: make(map[string]chan string),
 	}
 }
 
@@ -599,6 +604,25 @@ func (s *ExecutionService) updateSubmissionResult(submission *models.CodeSubmiss
 
 	submission.Status = "completed"
 	submission.Output = formattedOutput + rawOutput
+}
+
+// SubmitInput submits input to a running interactive program
+func (s *ExecutionService) SubmitInput(submission *models.CodeSubmission, input string) {
+	s.mu.Lock()
+	inputChan, exists := s.inputChannels[submission.ID]
+	s.mu.Unlock()
+
+	if !exists {
+		log.Printf("[ERROR] No input channel found for submission %s", submission.ID)
+		return
+	}
+
+	// Send the input to the channel
+	inputChan <- input
+
+	// Update the submission status
+	submission.Status = "running"
+	submission.Output += "[Input] " + input + "\n"
 }
 
 // GetQueueStats returns statistics about the job queue

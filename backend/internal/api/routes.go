@@ -24,6 +24,7 @@ func SetupRoutes() http.Handler {
 	mux.HandleFunc("/submit", h.SubmitHandler)
 	mux.HandleFunc("/status", h.StatusHandler)
 	mux.HandleFunc("/result", h.ResultHandler)
+	mux.HandleFunc("/submit-input", h.SubmitInputHandler)
 	mux.HandleFunc("/queue-stats", h.QueueStatsHandler)
 	mux.HandleFunc("/health", h.HealthCheckHandler)
 

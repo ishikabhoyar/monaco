@@ -1,31 +1,31 @@
 import React from "react";
 import { useState, useRef, useEffect } from "react";
 import Editor from "@monaco-editor/react";
-import { 
+import {
   X, Plus, Save, FileCode, FileText, Folder, ChevronDown, ChevronRight,
-  File, FilePlus, FolderPlus, Trash2, Edit, MoreHorizontal, Play, 
+  File, FilePlus, FolderPlus, Trash2, Edit, MoreHorizontal, Play,
   Terminal, Loader
 } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Panel from "./Panel";  // Import Panel component
 
-const EditorArea = ({ 
-  sidebarVisible = true, 
+const EditorArea = ({
+  sidebarVisible = true,
   activeView = "explorer",
   panelVisible,
-  setPanelVisible 
+  setPanelVisible
 }) => {
   // Store files with their content in state - start with just README.md
   const [files, setFiles] = useState([
     { id: "README.md", language: "markdown", content: getDefaultCode("README.md") },
   ]);
-  
+
   const [activeTab, setActiveTab] = useState(files[0]?.id || "");
   const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [newFileType, setNewFileType] = useState("javascript");
   const [unsavedChanges, setUnsavedChanges] = useState({});
-  
+
   // Sidebar state - now receives visibility from props
   const [sidebarWidth, setSidebarWidth] = useState(250);
   const [expandedFolders, setExpandedFolders] = useState({});
@@ -45,7 +45,7 @@ const EditorArea = ({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [contextMenuTarget, setContextMenuTarget] = useState(null);
-  
+
   const editorRef = useRef(null);
   const newFileInputRef = useRef(null);
   const renameInputRef = useRef(null);
@@ -83,7 +83,7 @@ const EditorArea = ({
   useEffect(() => {
     const savedFiles = localStorage.getItem("vscode-clone-files");
     const savedFileStructure = localStorage.getItem("vscode-clone-structure");
-    
+
     if (savedFiles) {
       try {
         const parsedFiles = JSON.parse(savedFiles);
@@ -95,7 +95,7 @@ const EditorArea = ({
         console.error("Failed to load saved files:", error);
       }
     }
-    
+
     if (savedFileStructure) {
       try {
         const parsedStructure = JSON.parse(savedFileStructure);
@@ -110,7 +110,7 @@ const EditorArea = ({
   useEffect(() => {
     localStorage.setItem("vscode-clone-files", JSON.stringify(files));
   }, [files]);
-  
+
   useEffect(() => {
     localStorage.setItem("vscode-clone-structure", JSON.stringify(fileStructure));
   }, [fileStructure]);
@@ -142,31 +142,31 @@ const EditorArea = ({
       ...prev,
       [activeTab]: true
     }));
-    
+
     // Update the file content in the files array
-    setFiles(files.map(file => 
+    setFiles(files.map(file =>
       file.id === activeTab ? { ...file, content: value } : file
     ));
   };
 
   const handleCloseTab = (e, fileId) => {
     e.stopPropagation();
-    
+
     if (unsavedChanges[fileId]) {
       if (!confirm(`You have unsaved changes in ${fileId}. Close anyway?`)) {
         return;
       }
     }
-    
+
     // Remove the file from the files array
     const newFiles = files.filter(file => file.id !== fileId);
     setFiles(newFiles);
-    
+
     // Update unsavedChanges
     const newUnsavedChanges = { ...unsavedChanges };
     delete newUnsavedChanges[fileId];
     setUnsavedChanges(newUnsavedChanges);
-    
+
     // If the active tab is closed, set a new active tab
     if (activeTab === fileId && newFiles.length > 0) {
       setActiveTab(newFiles[0].id);
@@ -175,17 +175,17 @@ const EditorArea = ({
 
   const handleCreateNewFile = (e, path = '') => {
     e?.preventDefault();
-    
+
     if (!newFileName) return;
-    
+
     const filePath = path ? `${path}/${newFileName}` : newFileName;
-    
+
     // Check if file already exists
     if (files.some(file => file.id === filePath)) {
       alert(`A file named "${filePath}" already exists.`);
       return;
     }
-    
+
     // Determine language based on file extension
     let language = newFileType;
     const extension = newFileName.split('.').pop().toLowerCase();
@@ -200,20 +200,20 @@ const EditorArea = ({
     } else if (['md', 'markdown'].includes(extension)) {
       language = 'markdown';
     }
-    
+
     // Create new file
     const newFile = {
       id: filePath,
       language,
       content: ''
     };
-    
+
     setFiles([...files, newFile]);
     setActiveTab(filePath);
-    
+
     // Update file structure
     updateFileStructure(filePath, 'file', language);
-    
+
     setNewFileName('');
     setIsNewFileModalOpen(false);
   };
@@ -222,7 +222,7 @@ const EditorArea = ({
     const parts = path.split('/');
     const fileName = parts.pop();
     let current = fileStructure;
-    
+
     // Navigate to the correct folder
     if (parts.length > 0) {
       for (const part of parts) {
@@ -232,14 +232,14 @@ const EditorArea = ({
         current = current[part].children;
       }
     }
-    
+
     // Add the new item to the structure
     if (type === 'file') {
       current[fileName] = { type: 'file', language, id: path };
     } else if (type === 'folder') {
       current[fileName] = { type: 'folder', children: {} };
     }
-    
+
     // Update the state with the new structure
     setFileStructure({...fileStructure});
   };
@@ -247,10 +247,10 @@ const EditorArea = ({
   const createNewFolder = (path = '') => {
     const folderName = prompt("Enter folder name:");
     if (!folderName) return;
-    
+
     const folderPath = path ? `${path}/${folderName}` : folderName;
     updateFileStructure(folderPath, 'folder');
-    
+
     // If the folder is inside another folder, expand the parent
     if (path) {
       setExpandedFolders({
@@ -266,7 +266,7 @@ const EditorArea = ({
       ...prev,
       [activeTab]: false
     }));
-    
+
     // In a real app, you would save to the server here
     console.log(`File ${activeTab} saved!`);
   };
@@ -281,14 +281,14 @@ const EditorArea = ({
   const openFile = (fileId) => {
     // Check if file exists in files array
     const fileExists = files.some(file => file.id === fileId);
-    
+
     if (!fileExists) {
       // Determine language from file structure
       let language = 'text';
       const parts = fileId.split('/');
       const fileName = parts.pop();
       const extension = fileName.split('.').pop().toLowerCase();
-      
+
       if (['jsx', 'js', 'ts', 'tsx'].includes(extension)) {
         language = 'javascript';
       } else if (['css', 'scss', 'less'].includes(extension)) {
@@ -300,17 +300,17 @@ const EditorArea = ({
       } else if (['md', 'markdown'].includes(extension)) {
         language = 'markdown';
       }
-      
+
       // Create new file entry
       const newFile = {
         id: fileId,
         language,
         content: ''
       };
-      
+
       setFiles([...files, newFile]);
     }
-    
+
     setActiveTab(fileId);
   };
 
@@ -329,82 +329,82 @@ const EditorArea = ({
   const deleteItem = (path, type) => {
     const confirmDelete = confirm(`Are you sure you want to delete ${path}?`);
     if (!confirmDelete) return;
-    
+
     if (type === 'file') {
       // Remove from files array
       setFiles(files.filter(file => file.id !== path));
-      
+
       // If it was active, set a new active tab
       if (activeTab === path) {
         const newActiveTab = files.find(file => file.id !== path)?.id || '';
         setActiveTab(newActiveTab);
       }
-      
+
       // Remove from unsavedChanges
       const newUnsavedChanges = { ...unsavedChanges };
       delete newUnsavedChanges[path];
       setUnsavedChanges(newUnsavedChanges);
     }
-    
+
     // Remove from file structure
     const parts = path.split('/');
     const itemName = parts.pop();
     let current = fileStructure;
     let parent = null;
-    
+
     // Navigate to the correct folder
     if (parts.length > 0) {
       for (const part of parts) {
         parent = current;
         current = current[part].children;
       }
-      
+
       // Delete the item
       delete current[itemName];
     } else {
       // Delete top-level item
       delete fileStructure[itemName];
     }
-    
+
     // Update the state
     setFileStructure({...fileStructure});
   };
 
   const startRenaming = (path, type) => {
     setRenamePath(path);
-    
+
     const parts = path.split('/');
     const currentName = parts.pop();
     setRenameValue(currentName);
-    
+
     setIsRenaming(true);
   };
 
   const handleRename = (e) => {
     e.preventDefault();
-    
+
     if (!renameValue.trim()) return;
-    
+
     const parts = renamePath.split('/');
     const oldName = parts.pop();
     const parentPath = parts.join('/');
     const newPath = parentPath ? `${parentPath}/${renameValue}` : renameValue;
-    
+
     // Check if this would overwrite an existing file or folder
     const parts2 = newPath.split('/');
     const newName = parts2.pop();
     let current = fileStructure;
-    
+
     // Navigate to parent folder
     for (let i = 0; i < parts2.length; i++) {
       current = current[parts2[i]].children;
     }
-    
+
     if (current[newName] && renamePath !== newPath) {
       alert(`An item named "${newName}" already exists at this location.`);
       return;
     }
-    
+
     // Get the object data
     const pathParts = renamePath.split('/');
     let curr = fileStructure;
@@ -412,10 +412,10 @@ const EditorArea = ({
       curr = curr[pathParts[i]].children;
     }
     const item = curr[pathParts[pathParts.length - 1]];
-    
+
     // Delete from old location
     delete curr[pathParts[pathParts.length - 1]];
-    
+
     // Add to new location
     const newParts = newPath.split('/');
     curr = fileStructure;
@@ -423,7 +423,7 @@ const EditorArea = ({
       curr = curr[newParts[i]].children;
     }
     curr[newParts[newParts.length - 1]] = item;
-    
+
     // If it's a file, update the files array
     if (item.type === 'file') {
       const fileIndex = files.findIndex(file => file.id === renamePath);
@@ -434,12 +434,12 @@ const EditorArea = ({
           id: newPath
         };
         setFiles(updatedFiles);
-        
+
         // Update active tab if necessary
         if (activeTab === renamePath) {
           setActiveTab(newPath);
         }
-        
+
         // Update unsavedChanges
         if (unsavedChanges[renamePath]) {
           const newUnsavedChanges = { ...unsavedChanges };
@@ -449,7 +449,7 @@ const EditorArea = ({
         }
       }
     }
-    
+
     setFileStructure({...fileStructure});
     setIsRenaming(false);
   };
@@ -500,7 +500,7 @@ Happy coding!`;
   }
 
   const activeFile = files.find(file => file.id === activeTab);
-  
+
   // Calculate editor area style based on sidebar visibility
   const editorAreaStyle = {
     marginLeft: sidebarVisible ? `${sidebarWidth}px` : '0px',
@@ -510,23 +510,25 @@ Happy coding!`;
   // Modify the handleRunCode function to prompt for input first
   const handleRunCode = async () => {
     if (!activeFile) return;
-    
+
     // Show the panel
     setShowPanel(true);
     if (setPanelVisible) {
       setPanelVisible(true);
     }
-    
+
     // Set state to waiting for input
     setWaitingForInput(true);
     setActiveRunningFile(activeFile.id);
-    
+
     // Clear previous output and add new command
     const fileExtension = activeFile.id.split('.').pop().toLowerCase();
     const language = getLanguageFromExtension(fileExtension);
-    
+
     const newOutput = [
       { type: 'command', content: `$ run ${activeFile.id}` },
+      { type: 'output', content: '------- PROGRAM EXECUTION -------' },
+      { type: 'output', content: `Language: ${language}` },
       { type: 'output', content: 'Waiting for input (press Enter if no input is needed)...' }
     ];
     setTerminalOutput(newOutput);
@@ -535,16 +537,23 @@ Happy coding!`;
   // Add a new function to handle input submission
   const handleInputSubmit = async () => {
     if (!activeFile || !waitingForInput) return;
-    
+
     // Set running state
     setIsRunning(true);
     setWaitingForInput(false);
-    
+
     // Add message that we're running with the input
-    setTerminalOutput(prev => [
-      ...prev,
-      { type: 'output', content: userInput ? `Using input: "${userInput}"` : 'Running without input...' }
-    ]);
+    if (userInput) {
+      setTerminalOutput(prev => [
+        ...prev,
+        { type: 'input', content: userInput }
+      ]);
+    } else {
+      setTerminalOutput(prev => [
+        ...prev,
+        { type: 'output', content: 'Running without input...' }
+      ]);
+    }
 
     // Use API URL from environment variable
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -562,36 +571,36 @@ Happy coding!`;
           input: userInput
         }),
       });
-      
+
       if (!submitResponse.ok) {
         throw new Error(`Server error: ${submitResponse.status}`);
       }
-      
+
       const { id } = await submitResponse.json();
       setTerminalOutput(prev => [...prev, { type: 'output', content: `Job submitted with ID: ${id}` }]);
-      
+
       // Step 2: Poll for status until completed or failed
       let status = 'pending';
       while (status !== 'completed' && status !== 'failed') {
         // Add a small delay between polls
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         const statusResponse = await fetch(`${apiUrl}/status?id=${id}`);
         if (!statusResponse.ok) {
           throw new Error(`Status check failed: ${statusResponse.status}`);
         }
-        
+
         const statusData = await statusResponse.json();
         status = statusData.status;
-        
+
         // Update terminal with status (for any status type)
         setTerminalOutput(prev => {
           // Update the last status message or add a new one
           const hasStatus = prev.some(line => line.content.includes('Status:'));
           if (hasStatus) {
-            return prev.map(line => 
-              line.content.includes('Status:') 
-                ? { ...line, content: `Status: ${status}` } 
+            return prev.map(line =>
+              line.content.includes('Status:')
+                ? { ...line, content: `Status: ${status}` }
                 : line
             );
           } else {
@@ -599,36 +608,51 @@ Happy coding!`;
           }
         });
       }
-      
+
       // Get the result for both completed and failed status
       const resultResponse = await fetch(`${apiUrl}/result?id=${id}`);
       if (!resultResponse.ok) {
         throw new Error(`Result fetch failed: ${resultResponse.status}`);
       }
-      
+
       const { output } = await resultResponse.json();
-      
+
       // Format and display output
-      const outputLines = output.split('\n').map(line => ({ 
-        type: status === 'failed' ? 'warning' : 'output', 
-        content: line 
-      }));
-      
+      const outputLines = [];
+
+      // Add a header
+      outputLines.push({
+        type: status === 'failed' ? 'warning' : 'output',
+        content: status === 'failed'
+          ? '------- EXECUTION FAILED -------'
+          : '------- EXECUTION RESULT -------'
+      });
+
+      // Process the output line by line
+      output.split('\n').forEach(line => {
+        // Check if this is an input line
+        if (line.startsWith('[Input] ')) {
+          outputLines.push({
+            type: 'input',
+            content: line.substring(8) // Remove the '[Input] ' prefix
+          });
+        } else {
+          outputLines.push({
+            type: status === 'failed' ? 'warning' : 'output',
+            content: line
+          });
+        }
+      });
+
       setTerminalOutput(prev => [
         ...prev,
-        { 
-          type: status === 'failed' ? 'warning' : 'output', 
-          content: status === 'failed' 
-            ? '------- EXECUTION FAILED -------' 
-            : '------- EXECUTION RESULT -------'
-        },
         ...outputLines
       ]);
-      
+
       if (status === 'failed') {
         console.error('Code execution failed:', output);
       }
-      
+
     } catch (error) {
       setTerminalOutput(prev => [...prev, { type: 'warning', content: `Error: ${error.message}` }]);
     } finally {
@@ -636,7 +660,7 @@ Happy coding!`;
       setIsRunning(false);
     }
   };
-  
+
   // Helper function to convert file extension to language identifier for API
   const getLanguageFromExtension = (extension) => {
     const languageMap = {
@@ -649,7 +673,7 @@ Happy coding!`;
       'ts': 'typescript',
       'tsx': 'typescript'
     };
-    
+
     return languageMap[extension] || extension;
   };
 
@@ -665,30 +689,30 @@ Happy coding!`;
   // Add this function above the return statement
   const handleDownloadFile = () => {
     if (!activeFile) return;
-    
+
     // Create a blob with the file content
     const blob = new Blob([activeFile.content], { type: 'text/plain' });
-    
+
     // Create a URL for the blob
     const url = URL.createObjectURL(blob);
-    
+
     // Create a temporary anchor element
     const a = document.createElement('a');
     a.href = url;
-    
+
     // Get just the filename without path
-    const fileName = activeFile.id.includes('/') ? 
-      activeFile.id.split('/').pop() : 
+    const fileName = activeFile.id.includes('/') ?
+      activeFile.id.split('/').pop() :
       activeFile.id;
-    
+
     // Set the download attribute with the filename
     a.download = fileName;
-    
+
     // Append to the document, click it, and then remove it
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    
+
     // Release the object URL
     URL.revokeObjectURL(url);
   };
@@ -716,16 +740,16 @@ Happy coding!`;
           createNewFolder={createNewFolder}
         />
       )}
-      
+
       <div className="editor-area" style={editorAreaStyle}>
         <div className="editor-header">
           <div className="editor-tabs">
             {files.map((file) => {
               // Extract just the filename without path for display
-              const displayName = file.id.includes('/') ? 
-                file.id.split('/').pop() : 
+              const displayName = file.id.includes('/') ?
+                file.id.split('/').pop() :
                 file.id;
-                
+
               return (
                 <div
                   key={file.id}
@@ -738,8 +762,8 @@ Happy coding!`;
                     {displayName} {/* Show just filename, not full path */}
                     {unsavedChanges[file.id] && ' •'}
                   </span>
-                  <button 
-                    className="tab-close" 
+                  <button
+                    className="tab-close"
                     onClick={(e) => handleCloseTab(e, file.id)}
                   >
                     <X size={12} />
@@ -747,7 +771,7 @@ Happy coding!`;
                 </div>
               );
             })}
-            <button 
+            <button
               className="editor-tab-new"
               onClick={() => setIsNewFileModalOpen(true)}
               title="Create new file"
@@ -755,21 +779,21 @@ Happy coding!`;
               <Plus size={14} />
             </button>
           </div>
-          
+
           {/* Run controls */}
           <div className="editor-run-controls">
             {activeFile && (
               <>
-                <button 
+                <button
                   className="run-button"
                   onClick={handleRunCode}
                   disabled={isRunning}
                   title="Run code"
                 >
                   {isRunning ? <Loader size={16} className="animate-spin" /> : <Play size={16} />}
-                  
+
                 </button>
-                <button 
+                <button
                   className="terminal-toggle-button"
                   onClick={togglePanel} // Use the new function
                   title="Toggle terminal"
@@ -781,8 +805,8 @@ Happy coding!`;
           </div>
         </div>
 
-        <div className="monaco-container" style={{ 
-          height: showPanel ? `calc(100% - ${panelHeight}px - 30px)` : "100%" 
+        <div className="monaco-container" style={{
+          height: showPanel ? `calc(100% - ${panelHeight}px - 30px)` : "100%"
         }}>
           {activeFile ? (
             <Editor
@@ -834,7 +858,7 @@ Happy coding!`;
                 document.addEventListener("mouseup", onMouseUp);
               }}
             />
-            <Panel 
+            <Panel
               height={panelHeight}
               terminalOutput={terminalOutput}
               isRunning={isRunning}
@@ -851,7 +875,7 @@ Happy coding!`;
 
         {/* Modify the editor-actions div to include the download button */}
         <div className="editor-actions">
-          <button 
+          <button
             className="editor-action-button"
             onClick={handleSaveFile}
             disabled={!activeTab || !unsavedChanges[activeTab]}
@@ -859,9 +883,9 @@ Happy coding!`;
           >
             <Save size={16} />
           </button>
-          
+
           {/* Add download button */}
-          <button 
+          <button
             className="editor-action-button"
             onClick={handleDownloadFile}
             disabled={!activeTab}
@@ -905,10 +929,10 @@ Happy coding!`;
             </div>
           </div>
         )}
-        
+
         {/* Context Menu */}
         {showContextMenu && (
-          <div 
+          <div
             className="context-menu"
             style={{
               position: 'fixed',
@@ -951,27 +975,27 @@ Happy coding!`;
                 if (file) {
                   // Create a blob with the file content
                   const blob = new Blob([file.content], { type: 'text/plain' });
-                  
+
                   // Create a URL for the blob
                   const url = URL.createObjectURL(blob);
-                  
+
                   // Create a temporary anchor element
                   const a = document.createElement('a');
                   a.href = url;
-                  
+
                   // Get just the filename without path
-                  const fileName = file.id.includes('/') ? 
-                    file.id.split('/').pop() : 
+                  const fileName = file.id.includes('/') ?
+                    file.id.split('/').pop() :
                     file.id;
-                  
+
                   // Set the download attribute with the filename
                   a.download = fileName;
-                  
+
                   // Append to the document, click it, and then remove it
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
-                  
+
                   // Release the object URL
                   URL.revokeObjectURL(url);
                 }
@@ -1007,9 +1031,9 @@ Happy coding!`;
           </div>
         )}
       </div>
-      
+
       {showContextMenu && (
-        <div 
+        <div
           className="context-menu-overlay"
           onClick={closeContextMenu}
           style={{
