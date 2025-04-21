@@ -23,6 +23,9 @@ type ExecutionService struct {
 	mu    sync.Mutex
 	// Map of submission ID to input channel for interactive programs
 	inputChannels map[string]chan string
+	// WebSocket channels for real-time communication
+	wsInputChannels  map[string]chan string
+	wsOutputChannels map[string]chan string
 }
 
 // CodeExecutionJob represents a code execution job
@@ -34,8 +37,10 @@ type CodeExecutionJob struct {
 // NewExecutionService creates a new execution service
 func NewExecutionService() *ExecutionService {
 	return &ExecutionService{
-		queue:         queue.NewJobQueue(5), // 5 concurrent workers
-		inputChannels: make(map[string]chan string),
+		queue:            queue.NewJobQueue(5), // 5 concurrent workers
+		inputChannels:    make(map[string]chan string),
+		wsInputChannels:  make(map[string]chan string),
+		wsOutputChannels: make(map[string]chan string),
 	}
 }
 
@@ -117,6 +122,15 @@ func (s *ExecutionService) executePython(submission *models.CodeSubmission) {
 		return
 	}
 
+	// Check if we should use interactive mode
+	if strings.Contains(submission.Code, "input(") {
+		// This code likely requires interactive input
+		submission.IsInteractive = true
+		s.executePythonInteractive(submission, tempDir)
+		return
+	}
+
+	// Non-interactive mode
 	// Create a file for input if provided
 	inputPath := ""
 	if submission.Input != "" {
@@ -181,6 +195,14 @@ func (s *ExecutionService) executeJavaScript(submission *models.CodeSubmission) 
 	if err := os.WriteFile(codePath, []byte(submission.Code), 0644); err != nil {
 		submission.Status = "failed"
 		submission.Error = fmt.Sprintf("Failed to write code file: %v", err)
+		return
+	}
+
+	// Check if we should use interactive mode
+	if strings.Contains(submission.Code, "readline") && strings.Contains(submission.Code, "question") {
+		// This code likely requires interactive input
+		submission.IsInteractive = true
+		s.executeJavaScriptInteractive(submission, tempDir)
 		return
 	}
 

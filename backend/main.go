@@ -51,6 +51,7 @@ func main() {
 	http.HandleFunc("/status", corsMiddleware(loggingMiddleware(h.StatusHandler)))
 	http.HandleFunc("/result", corsMiddleware(loggingMiddleware(h.ResultHandler)))
 	http.HandleFunc("/queue-stats", corsMiddleware(loggingMiddleware(h.QueueStatsHandler)))
+	http.HandleFunc("/ws", corsMiddleware(h.WebSocketHandler)) // WebSocket doesn't need logging middleware
 
 	port := ":8080"
 	log.Printf("Server started at %s", port)

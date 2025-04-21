@@ -28,9 +28,10 @@ const Panel = ({
           // Render output from EditorArea when available
           <>
             {terminalOutput.map((line, index) => (
-              <div key={index} className={`terminal-line ${line.type === 'warning' ? 'terminal-warning' : line.type === 'input' ? 'terminal-input-line' : 'terminal-output'}`}>
+              <div key={index} className={`terminal-line ${line.type === 'warning' ? 'terminal-warning' : line.type === 'input' ? 'terminal-input-line' : line.type === 'prompt' ? 'terminal-prompt-line' : 'terminal-output'}`}>
                 {line.type === 'command' ? <span className="terminal-prompt">$</span> : ''}
                 {line.type === 'input' ? <span className="terminal-input-marker">[Input]</span> : ''}
+                {line.type === 'prompt' ? <span className="terminal-prompt-marker">&gt;</span> : ''}
                 {line.content}
               </div>
             ))}
@@ -40,6 +41,7 @@ const Panel = ({
                   <span className="terminal-input-marker">Input Required:</span>
                 </div>
                 <div className="terminal-input-wrapper">
+                  <div className="terminal-input-prompt">&gt;</div>
                   <input
                     type="text"
                     className="terminal-input"

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -225,9 +226,10 @@ func (h *Handler) SubmitInputHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the submission is waiting for input
-	if submission.Status != "waiting_for_input" {
-		http.Error(w, "Submission is not waiting for input", http.StatusBadRequest)
+	// Check if the submission is waiting for input or running
+	// We're more lenient here to handle race conditions
+	if submission.Status != "waiting_for_input" && submission.Status != "running" {
+		http.Error(w, fmt.Sprintf("Submission is not waiting for input (status: %s)", submission.Status), http.StatusBadRequest)
 		return
 	}
 

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Panel from "./Panel";  // Import Panel component
+import WebSocketTerminal from "./WebSocketTerminal"; // Import WebSocket Terminal
 
 const EditorArea = ({
   sidebarVisible = true,
@@ -64,6 +65,10 @@ const EditorArea = ({
   const [userInput, setUserInput] = useState("");
   // Add a new state for waiting for input
   const [waitingForInput, setWaitingForInput] = useState(false);
+  // Add a new state for tracking the active submission ID
+  const [activeRunningSubmissionId, setActiveRunningSubmissionId] = useState(null);
+  // Add a state to toggle between regular and WebSocket terminals
+  const [useWebSocket, setUseWebSocket] = useState(false);
 
   // Focus the input when new file modal opens
   useEffect(() => {
@@ -507,7 +512,7 @@ Happy coding!`;
     width: `calc(100% - ${sidebarVisible ? sidebarWidth : 0}px)`
   };
 
-  // Modify the handleRunCode function to prompt for input first
+  // Modified handleRunCode to start execution immediately
   const handleRunCode = async () => {
     if (!activeFile) return;
 
@@ -517,58 +522,47 @@ Happy coding!`;
       setPanelVisible(true);
     }
 
-    // Set state to waiting for input
-    setWaitingForInput(true);
+    // Reset states
+    setIsRunning(true);
+    setWaitingForInput(false);
     setActiveRunningFile(activeFile.id);
+    setActiveRunningSubmissionId(null);
+    setUserInput('');
 
-    // Clear previous output and add new command
+    // Get language from file extension
     const fileExtension = activeFile.id.split('.').pop().toLowerCase();
     const language = getLanguageFromExtension(fileExtension);
 
+    // If using WebSocket mode, we'll use the WebSocketTerminal component
+    if (useWebSocket) {
+      // Just set the running state, the WebSocketTerminal will handle the rest
+      return;
+    }
+
+    // Regular HTTP mode - use polling
+    // Clear previous output and add new command
     const newOutput = [
       { type: 'command', content: `$ run ${activeFile.id}` },
       { type: 'output', content: '------- PROGRAM EXECUTION -------' },
       { type: 'output', content: `Language: ${language}` },
-      { type: 'output', content: 'Waiting for input (press Enter if no input is needed)...' }
+      { type: 'output', content: 'Executing code...' }
     ];
     setTerminalOutput(newOutput);
-  };
-
-  // Add a new function to handle input submission
-  const handleInputSubmit = async () => {
-    if (!activeFile || !waitingForInput) return;
-
-    // Set running state
-    setIsRunning(true);
-    setWaitingForInput(false);
-
-    // Add message that we're running with the input
-    if (userInput) {
-      setTerminalOutput(prev => [
-        ...prev,
-        { type: 'input', content: userInput }
-      ]);
-    } else {
-      setTerminalOutput(prev => [
-        ...prev,
-        { type: 'output', content: 'Running without input...' }
-      ]);
-    }
 
     // Use API URL from environment variable
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
     try {
-      // Now make the API call with the input that was entered
+      // Submit the code for execution immediately
       const submitResponse = await fetch(`${apiUrl}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          language: getLanguageFromExtension(activeFile.id.split('.').pop().toLowerCase()),
+          language: getLanguageFromExtension(fileExtension),
           code: activeFile.content,
-          input: userInput
+          input: '' // No initial input
         }),
       });
 
@@ -577,11 +571,81 @@ Happy coding!`;
       }
 
       const { id } = await submitResponse.json();
+      setActiveRunningSubmissionId(id);
       setTerminalOutput(prev => [...prev, { type: 'output', content: `Job submitted with ID: ${id}` }]);
 
-      // Step 2: Poll for status until completed or failed
+      // Start polling for status and output
+      pollForStatusAndOutput(id);
+    } catch (error) {
+      setTerminalOutput(prev => [...prev, { type: 'warning', content: `Error: ${error.message}` }]);
+      setIsRunning(false);
+      setActiveRunningSubmissionId(null);
+    }
+  };
+
+  // Toggle between WebSocket and HTTP modes
+  const toggleWebSocketMode = () => {
+    setUseWebSocket(!useWebSocket);
+  };
+
+  // Simplified handleInputSubmit to only handle interactive input
+  const handleInputSubmit = async () => {
+    if (!waitingForInput || !activeRunningSubmissionId) return;
+
+    // Store the input value before clearing it
+    const inputValue = userInput;
+
+    // Clear the input field and reset waiting state immediately for better UX
+    setUserInput('');
+    setWaitingForInput(false);
+
+    // Add the input to the terminal immediately
+    setTerminalOutput(prev => [
+      ...prev,
+      { type: 'input', content: inputValue }
+    ]);
+
+    // Use API URL from environment variable
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+    try {
+      // Submit input to the running program
+      const submitInputResponse = await fetch(`${apiUrl}/submit-input`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: activeRunningSubmissionId,
+          input: inputValue
+        }),
+      });
+
+      if (!submitInputResponse.ok) {
+        throw new Error(`Server error: ${submitInputResponse.status}`);
+      }
+
+      // Wait for a moment to allow the program to process the input
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Poll for status and check if we need more input
+      pollForStatusAndOutput(activeRunningSubmissionId);
+
+    } catch (error) {
+      setTerminalOutput(prev => [...prev, { type: 'warning', content: `Error: ${error.message}` }]);
+      setIsRunning(false);
+      setActiveRunningSubmissionId(null);
+    }
+  };
+
+  // Add a function to poll for status and output
+  const pollForStatusAndOutput = async (id) => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+    try {
+      // Step 2: Poll for status until completed, failed, or waiting_for_input
       let status = 'pending';
-      while (status !== 'completed' && status !== 'failed') {
+      while (status !== 'completed' && status !== 'failed' && status !== 'waiting_for_input') {
         // Add a small delay between polls
         await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -607,6 +671,90 @@ Happy coding!`;
             return [...prev, { type: 'output', content: `Status: ${status}` }];
           }
         });
+      }
+
+      // Check if we're waiting for input
+      if (status === 'waiting_for_input') {
+        // Get the current output to display to the user
+        const resultResponse = await fetch(`${apiUrl}/result?id=${id}`);
+        if (resultResponse.ok) {
+          const { output } = await resultResponse.json();
+
+          // Process the output to show what's happened so far
+          const outputLines = [];
+          let promptText = '';
+
+          // Split by lines and process each line
+          const lines = output.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            if (line.startsWith('[Input] ')) {
+              // This is an input line
+              outputLines.push({
+                type: 'input',
+                content: line.substring(8) // Remove the '[Input] ' prefix
+              });
+            } else if (line === '[WAITING_FOR_INPUT]') {
+              // This is a marker for waiting for input
+              // If there's a line before this, it's likely the prompt
+              if (i > 0 && lines[i-1].trim() !== '') {
+                promptText = lines[i-1];
+              }
+              continue;
+            } else if (line.trim() !== '') {
+              // This is a regular output line
+              outputLines.push({
+                type: 'output',
+                content: line
+              });
+            }
+          }
+
+          // Update the terminal with the current output
+          if (outputLines.length > 0) {
+            setTerminalOutput(prev => {
+              // Keep only the essential lines to avoid duplication
+              const essentialLines = prev.filter(line =>
+                line.type === 'command' ||
+                line.content.includes('PROGRAM EXECUTION') ||
+                line.content.includes('Language:') ||
+                line.content.includes('Job submitted') ||
+                line.content.includes('Status:') ||
+                line.content === 'Executing code...'
+              );
+              return [...essentialLines, ...outputLines];
+            });
+          }
+
+          // Now set the waiting for input state
+          setWaitingForInput(true);
+
+          // Add a message indicating we're waiting for input
+          setTerminalOutput(prev => {
+            // Remove any existing waiting message
+            const filteredPrev = prev.filter(line =>
+              line.content !== 'Waiting for input...'
+            );
+
+            // Add the prompt text if available
+            if (promptText) {
+              return [...filteredPrev, {
+                type: 'prompt',
+                content: promptText
+              }, {
+                type: 'output',
+                content: 'Waiting for input...'
+              }];
+            } else {
+              return [...filteredPrev, {
+                type: 'output',
+                content: 'Waiting for input...'
+              }];
+            }
+          });
+        }
+        return;
       }
 
       // Get the result for both completed and failed status
@@ -653,11 +801,16 @@ Happy coding!`;
         console.error('Code execution failed:', output);
       }
 
+      // Reset state
+      setIsRunning(false);
+      setWaitingForInput(false);
+      setActiveRunningSubmissionId(null);
+
     } catch (error) {
       setTerminalOutput(prev => [...prev, { type: 'warning', content: `Error: ${error.message}` }]);
-    } finally {
-      // Set running state to false
       setIsRunning(false);
+      setWaitingForInput(false);
+      setActiveRunningSubmissionId(null);
     }
   };
 
@@ -791,14 +944,37 @@ Happy coding!`;
                   title="Run code"
                 >
                   {isRunning ? <Loader size={16} className="animate-spin" /> : <Play size={16} />}
-
                 </button>
                 <button
                   className="terminal-toggle-button"
-                  onClick={togglePanel} // Use the new function
+                  onClick={togglePanel}
                   title="Toggle terminal"
                 >
                   <Terminal size={16} />
+                </button>
+                <button
+                  className={`websocket-toggle-button ${useWebSocket ? 'active' : ''}`}
+                  onClick={toggleWebSocketMode}
+                  title={`${useWebSocket ? 'Disable' : 'Enable'} WebSocket mode`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12s2-3 5-3 5 3 5 3-2 3-5 3-5-3-5-3z"></path>
+                    <circle cx="12" cy="12" r="1"></circle>
+                    <path d="M2 4l3 3"></path>
+                    <path d="M22 4l-3 3"></path>
+                    <path d="M2 20l3-3"></path>
+                    <path d="M22 20l-3-3"></path>
+                  </svg>
                 </button>
               </>
             )}
@@ -858,18 +1034,28 @@ Happy coding!`;
                 document.addEventListener("mouseup", onMouseUp);
               }}
             />
-            <Panel
-              height={panelHeight}
-              terminalOutput={terminalOutput}
-              isRunning={isRunning}
-              waitingForInput={waitingForInput}
-              activeRunningFile={activeRunningFile}
-              initialTab="terminal"
-              onClose={togglePanel}
-              userInput={userInput}
-              onUserInputChange={setUserInput}
-              onInputSubmit={handleInputSubmit}
-            />
+            {useWebSocket && activeFile ? (
+              <div style={{ height: panelHeight + 'px' }}>
+                <WebSocketTerminal
+                  code={activeFile.content}
+                  language={getLanguageFromExtension(activeFile.id.split('.').pop().toLowerCase())}
+                  onClose={togglePanel}
+                />
+              </div>
+            ) : (
+              <Panel
+                height={panelHeight}
+                terminalOutput={terminalOutput}
+                isRunning={isRunning}
+                waitingForInput={waitingForInput}
+                activeRunningFile={activeRunningFile}
+                initialTab="terminal"
+                onClose={togglePanel}
+                userInput={userInput}
+                onUserInputChange={setUserInput}
+                onInputSubmit={handleInputSubmit}
+              />
+            )}
           </>
         )}
 
