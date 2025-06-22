@@ -308,44 +308,100 @@ func (e *CodeExecutor) executeJava(submission *models.CodeSubmission, tempDir st
 
 // executeC executes C code
 func (e *CodeExecutor) executeC(submission *models.CodeSubmission, tempDir string, langConfig config.LanguageConfig) {
-	// Write code to file
-	codeFile := filepath.Join(tempDir, "code"+langConfig.FileExt)
-	if err := os.WriteFile(codeFile, []byte(submission.Code), 0644); err != nil {
-		submission.Status = "failed"
-		submission.Output = "Failed to write code file: " + err.Error()
-		return
-	}
+    // Write code to file
+    codeFile := filepath.Join(tempDir, "code"+langConfig.FileExt)
+    if err := os.WriteFile(codeFile, []byte(submission.Code), 0644); err != nil {
+        submission.Status = "failed"
+        submission.Output = "Failed to write code file: " + err.Error()
+        return
+    }
 
-	// Compile C code
-	compileCmd := exec.Command(
-		"docker", "run", "--rm",
-		"-v", tempDir+":/code",
-		langConfig.Image,
-		"gcc", "-o", "/code/program", "/code/code.c",
-	)
-	
-	compileOutput, compileErr := compileCmd.CombinedOutput()
-	if compileErr != nil {
-		submission.Status = "failed"
-		submission.Output = "Compilation error:\n" + string(compileOutput)
-		e.sendToTerminals(submission.ID, models.NewOutputMessage(string(compileOutput), true))
-		return
-	}
-	
-	// Setup Docker run command
-	cmd := exec.Command(
-		"docker", "run", "--rm", "-i",
-		"--network=none",
-		"--memory="+langConfig.MemoryLimit,
-		"--cpu-quota="+fmt.Sprintf("%d", int(float64(100000)*0.1)), // 10% CPU
-		"--pids-limit=20",
-		"-v", tempDir+":/code",
-		langConfig.Image,
-		"/code/program",
-	)
+    // Create a wrapper script that will include setbuf to disable buffering
+    wrapperCode := `#include <stdio.h>
 
-	// Execute the code with input handling
-	e.executeWithIO(cmd, submission, time.Duration(langConfig.TimeoutSec)*time.Second)
+// Forward declaration of user's main function
+int user_main();
+
+int main() {
+    // Disable buffering completely for stdout
+    setbuf(stdout, NULL);
+    
+    // Call the user's code
+    return user_main();
+}
+
+// User's code begins here
+`
+    
+    // Modify the user's code to be a function called from our wrapper
+    modifiedCode := submission.Code
+    // Replace main function with our wrapper
+    mainRegex := regexp.MustCompile(`int\s+main\s*\([^)]*\)\s*{`)
+    if mainRegex.MatchString(modifiedCode) {
+        // Rename user's main to user_main
+        modifiedCode = mainRegex.ReplaceAllString(modifiedCode, "int user_main() {")
+        
+        // Combine wrapper with modified user code
+        finalCode := wrapperCode + modifiedCode
+        
+        // Write the final code with wrapper to file
+        if err := os.WriteFile(codeFile, []byte(finalCode), 0644); err != nil {
+            submission.Status = "failed"
+            submission.Output = "Failed to write code file: " + err.Error()
+            return
+        }
+    } else {
+        // If no main function found, create a minimal program that includes the user code
+        finalCode := `#include <stdio.h>
+
+int main() {
+    // Disable buffering completely for stdout
+    setbuf(stdout, NULL);
+    
+    // Execute the user's code
+    ` + submission.Code + `
+    
+    return 0;
+}
+`
+        // Write the final code to file
+        if err := os.WriteFile(codeFile, []byte(finalCode), 0644); err != nil {
+            submission.Status = "failed"
+            submission.Output = "Failed to write code file: " + err.Error()
+            return
+        }
+    }
+
+    // Compile C code
+    compileCmd := exec.Command(
+        "docker", "run", "--rm",
+        "-v", tempDir+":/code",
+        langConfig.Image,
+        "gcc", "-o", "/code/program", "/code/code.c",
+    )
+    
+    compileOutput, compileErr := compileCmd.CombinedOutput()
+    if compileErr != nil {
+        submission.Status = "failed"
+        submission.Output = "Compilation error:\n" + string(compileOutput)
+        e.sendToTerminals(submission.ID, models.NewOutputMessage(string(compileOutput), true))
+        return
+    }
+    
+    // Setup Docker run command
+    cmd := exec.Command(
+        "docker", "run", "--rm", "-i",
+        "--network=none",
+        "--memory="+langConfig.MemoryLimit,
+        "--cpu-quota="+fmt.Sprintf("%d", int(float64(100000)*0.1)), // 10% CPU
+        "--pids-limit=20",
+        "-v", tempDir+":/code",
+        langConfig.Image,
+        "/code/program",
+    )
+
+    // Execute the code with input handling
+    e.executeWithIO(cmd, submission, time.Duration(langConfig.TimeoutSec)*time.Second)
 }
 
 // executeCpp executes C++ code
