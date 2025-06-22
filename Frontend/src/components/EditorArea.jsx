@@ -609,7 +609,7 @@ This project is a VS Code Clone built with React and Monaco Editor. It features 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
       
       // Submit the code to get an execution ID
-      const submitResponse = await fetch(`${apiUrl}/submit`, {
+      const submitResponse = await fetch(`${apiUrl}/api/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -634,7 +634,7 @@ This project is a VS Code Clone built with React and Monaco Editor. It features 
       // Connect to WebSocket with the execution ID
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsBaseUrl = apiUrl.replace(/^https?:\/\//, '');
-      const wsUrl = `${wsProtocol}//${wsBaseUrl}/ws/terminal?id=${id}`;
+      const wsUrl = `${wsProtocol}//${wsBaseUrl}/api/ws/terminal/${id}`;
       
       setTerminalOutput(prev => [...prev, { type: 'output', content: `Connecting to: ${wsUrl}` }]);
       
@@ -650,21 +650,74 @@ This project is a VS Code Clone built with React and Monaco Editor. It features 
       
       newSocket.onmessage = (event) => {
         console.log("WebSocket message received:", event.data);
-        setTerminalOutput(prev => [...prev, { type: 'output', content: event.data }]);
         
-        // Check if this message is likely asking for input (prompt detection)
-        const isPrompt = 
-          event.data.includes("input") || 
-          event.data.includes("?") || 
-          event.data.endsWith(":") || 
-          event.data.endsWith("> ");
+        try {
+          const message = JSON.parse(event.data);
           
-        if (isPrompt) {
-          console.log("Input prompt detected, focusing terminal");
-          // Force terminal to focus after a prompt is detected
-          setTimeout(() => {
-            document.querySelector('.panel-terminal')?.focus();
-          }, 100);
+          // Handle different message types
+          switch (message.type) {
+            case 'output':
+              setTerminalOutput(prev => [...prev, { 
+                type: 'output', 
+                content: message.content.text,
+                isError: message.content.isError 
+              }]);
+              break;
+            
+            case 'status':
+              const status = message.content.status;
+              setTerminalOutput(prev => [...prev, { 
+                type: 'status', 
+                content: `Status: ${status}` 
+              }]);
+              
+              // Update running state based on status
+              if (status === 'completed' || status === 'failed') {
+                // Don't immediately set isRunning to false - we'll wait for the socket to close or delay
+              }
+              break;
+            
+            case 'system':
+              setTerminalOutput(prev => [...prev, { 
+                type: 'system', 
+                content: message.content
+              }]);
+              break;
+              
+            case 'error':
+              setTerminalOutput(prev => [...prev, { 
+                type: 'error', 
+                content: `Error: ${message.content.message}`
+              }]);
+              break;
+              
+            default:
+              // For raw or unknown messages
+              setTerminalOutput(prev => [...prev, { 
+                type: 'output', 
+                content: event.data
+              }]);
+          }
+          
+          // Check if this message is likely asking for input (prompt detection)
+          if (message.type === 'output' && !message.content.isError && 
+              (message.content.text.includes("?") || 
+               message.content.text.endsWith(":") || 
+               message.content.text.endsWith("> "))) {
+            console.log("Input prompt detected, focusing terminal");
+            // Force terminal to focus after a prompt is detected
+            setTimeout(() => {
+              document.querySelector('.panel-terminal')?.focus();
+            }, 100);
+          }
+          
+        } catch (err) {
+          // Handle case where message isn't valid JSON
+          console.warn("Failed to parse WebSocket message:", err);
+          setTerminalOutput(prev => [...prev, { 
+            type: 'output', 
+            content: event.data 
+          }]);
         }
       };
 
@@ -674,7 +727,7 @@ This project is a VS Code Clone built with React and Monaco Editor. It features 
         // Start polling the status endpoint every 2 seconds
         statusCheckInterval = setInterval(async () => {
           try {
-            const statusResponse = await fetch(`${apiUrl}/status?id=${id}`);
+            const statusResponse = await fetch(`${apiUrl}/api/status/${id}`);
             if (statusResponse.ok) {
               const statusData = await statusResponse.json();
               
@@ -722,16 +775,43 @@ This project is a VS Code Clone built with React and Monaco Editor. It features 
       
       newSocket.onclose = (event) => {
         console.log("WebSocket closed:", event);
-        setIsRunning(false);
-        setActiveSocket(null);
         
         const reason = event.reason ? `: ${event.reason}` : '';
         const code = event.code ? ` (code: ${event.code})` : '';
         
-        setTerminalOutput(prev => [...prev, { 
-          type: 'warning', 
-          content: `Terminal connection closed${reason}${code}` 
-        }]);
+        // Don't mark as not running if this is expected close (after execution completes)
+        // Code 1000 is normal closure, 1005 is no status code
+        const isExpectedClose = event.code === 1000 || event.code === 1005;
+        
+        // Only set running to false if it wasn't an expected close
+        if (!isExpectedClose) {
+          setIsRunning(false);
+          
+          // Add a graceful reconnection message
+          setTerminalOutput(prev => [...prev, { 
+            type: 'warning', 
+            content: `Terminal connection closed${reason}${code}` 
+          }]);
+          
+          // Attempt reconnection for certain close codes (unexpected closes)
+          if (activeRunningFile && event.code !== 1000) {
+            setTerminalOutput(prev => [...prev, { 
+              type: 'info', 
+              content: `Attempting to reconnect...` 
+            }]);
+            
+            // Reconnection delay
+            setTimeout(() => {
+              // Attempt to reconnect for the same file
+              if (activeRunningFile) {
+                console.log("Attempting to reconnect for", activeRunningFile);
+                // You could call your run function here again
+              }
+            }, 3000);
+          }
+        }
+        
+        setActiveSocket(null);
         
         // Clean up interval
         if (statusCheckInterval) {
