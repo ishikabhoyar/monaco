@@ -3,6 +3,7 @@ package executor
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -122,21 +123,37 @@ func (e *CodeExecutor) handleTerminalInput(submissionID string, conn *websocket.
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("WebSocket read error: %v", err)
+			log.Printf("Error reading WebSocket message: %v", err)
 			break
 		}
 
-	// If there's an input channel, send the input
-		e.inputMutex.RLock()
-		if inputChan, exists := e.inputChannels[submissionID]; exists {
-			select {
-			case inputChan <- string(message):
-				log.Printf("Input sent to process: %s", string(message))
-			default:
-				log.Printf("Input channel is full or closed, input ignored")
-			}
+		// Try to parse the message as JSON first
+		var inputMessage struct {
+			Type    string `json:"type"`
+			Content string `json:"content"`
 		}
-		e.inputMutex.RUnlock()
+
+		inputText := string(message)
+		if err := json.Unmarshal(message, &inputMessage); err == nil && inputMessage.Type == "input" {
+			// It's a structured input message
+			inputText = inputMessage.Content
+		}
+
+		// Now get the input channel
+		e.inputMutex.Lock()
+		inputChan, exists := e.inputChannels[submissionID]
+		e.inputMutex.Unlock()
+
+		if exists {
+			select {
+			case inputChan <- inputText:
+				log.Printf("Input sent to process: %s", inputText)
+			default:
+				log.Printf("Failed to send input: channel full or closed")
+			}
+		} else {
+			log.Printf("No input channel for submission %s", submissionID)
+		}
 	}
 
 	// When connection is closed, unregister it
@@ -235,28 +252,29 @@ func (e *CodeExecutor) executeCode(submission *models.CodeSubmission) {
 
 // executePython executes Python code
 func (e *CodeExecutor) executePython(submission *models.CodeSubmission, tempDir string, langConfig config.LanguageConfig) {
-	// Write code to file
-	codeFile := filepath.Join(tempDir, "code"+langConfig.FileExt)
-	if err := os.WriteFile(codeFile, []byte(submission.Code), 0644); err != nil {
-		submission.Status = "failed"
-		submission.Output = "Failed to write code file: " + err.Error()
-		return
-	}
+    // Write code to file
+    codeFile := filepath.Join(tempDir, "code"+langConfig.FileExt)
+    if err := os.WriteFile(codeFile, []byte(submission.Code), 0644); err != nil {
+        submission.Status = "failed"
+        submission.Output = "Failed to write code file: " + err.Error()
+        return
+    }
 
-	// Setup Docker run command
-	cmd := exec.Command(
-		"docker", "run", "--rm", "-i",
-		"--network=none",
-		"--memory="+langConfig.MemoryLimit,
-		"--cpu-quota="+fmt.Sprintf("%d", int(float64(100000)*0.1)), // 10% CPU
-		"--pids-limit=20",
-		"-v", tempDir+":/code",
-		langConfig.Image,
-		"python", "/code/code.py",
-	)
+    // Setup Docker run command with unbuffered Python output
+    cmd := exec.Command(
+        "docker", "run", "--rm", "-i",
+        "--network=none",
+        "--memory="+langConfig.MemoryLimit,
+        "--cpu-quota="+fmt.Sprintf("%d", int(float64(100000)*0.1)), // 10% CPU
+        "--pids-limit=20",
+        "-v", tempDir+":/code",
+        "-e", "PYTHONUNBUFFERED=1", // Force Python to be unbuffered
+        langConfig.Image,
+        "python", "-u", "/code/code.py", // Add -u flag for unbuffered I/O
+    )
 
-	// Execute the code with input handling
-	e.executeWithIO(cmd, submission, time.Duration(langConfig.TimeoutSec)*time.Second)
+    // Execute with increased timeout for interactive programs
+    e.executeWithIO(cmd, submission, time.Duration(langConfig.TimeoutSec)*time.Second)
 }
 
 // executeJava executes Java code
@@ -605,7 +623,13 @@ func (e *CodeExecutor) executeWithIO(cmd *exec.Cmd, submission *models.CodeSubmi
 				if !ok {
 					return
 				}
-				stdin.Write([]byte(input + "\n"))
+				log.Printf("Received input from WebSocket: %s", input)
+				// Write input with a single newline - don't add extra newlines
+				_, err := stdin.Write([]byte(input + "\n"))
+				if err != nil {
+					log.Printf("Error writing to stdin: %v", err)
+					e.sendToTerminals(submission.ID, models.NewErrorMessage("input_error", "Failed to send input to process"))
+				}
 			case <-ctx.Done():
 				return
 			}

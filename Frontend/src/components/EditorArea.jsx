@@ -869,18 +869,19 @@ This project is a VS Code Clone built with React and Monaco Editor. It features 
       return;
     }
     
-    if (!textToSend.trim()) {
-      console.warn("Cannot send empty input");
-      return;
-    }
-    
     try {
       // Add the input to the terminal display
       setTerminalOutput(prev => [...prev, { type: 'command', content: `> ${textToSend}` }]);
       
-      // Send the input via WebSocket with a newline character
+      // Send the input via WebSocket
       console.log("Sending input:", textToSend);
-      activeSocket.send(textToSend + "\n");
+      
+      // Instead of just sending the raw input, send a formatted input message
+      // This helps the backend identify it as user input rather than a command
+      activeSocket.send(JSON.stringify({
+        type: "input",
+        content: textToSend
+      }));
       
       // Clear the input field
       setUserInput("");
