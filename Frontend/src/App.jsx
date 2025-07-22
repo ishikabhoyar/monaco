@@ -1,10 +1,10 @@
-import VSCodeUI from "./components/VSCodeUI.jsx"
+import CodeChallenge from "./components/CodeChallenge.jsx"
 import "./index.css"
 
 function App() {
   return (
     <div className="App">
-      <VSCodeUI />
+      <CodeChallenge />
     </div>
   )
 }
