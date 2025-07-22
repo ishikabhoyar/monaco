@@ -133,9 +133,11 @@ var isValid = function(s) {
     socket.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        console.log('WebSocket message received:', message);
         
         switch (message.type) {
           case 'output':
+            // Handle output message based on the format seen in the screenshot
             setTerminalOutput(prev => [
               ...prev,
               { 
@@ -144,22 +146,48 @@ var isValid = function(s) {
               }
             ]);
             break;
-          
-          case 'status':
+            
+          case 'input_prompt':
+            // Handle input prompt message (e.g., "Enter your name:")
             setTerminalOutput(prev => [
               ...prev,
-              { type: 'system', content: `Status: ${message.content.status}` }
+              { type: 'output', content: message.content }
+            ]);
+            break;
+          
+          case 'status':
+            let statusText = '';
+            if (typeof message.content === 'object') {
+              statusText = `Status: ${message.content.status}`;
+            } else {
+              statusText = `Status: ${message.content}`;
+            }
+            
+            setTerminalOutput(prev => [
+              ...prev,
+              { type: 'system', content: statusText }
             ]);
             
-            if (message.content.status === 'completed' || message.content.status === 'failed') {
+            // If status contains "completed" or "failed", stop running
+            if ((typeof message.content === 'string' && 
+                (message.content.includes('completed') || message.content.includes('failed'))) ||
+                (message.content.status && 
+                (message.content.status.includes('completed') || message.content.status.includes('failed')))) {
               setIsRunning(false);
             }
             break;
           
           case 'error':
+            let errorContent = '';
+            if (typeof message.content === 'object' && message.content.message) {
+              errorContent = message.content.message;
+            } else {
+              errorContent = String(message.content);
+            }
+            
             setTerminalOutput(prev => [
               ...prev,
-              { type: 'error', content: message.content.message }
+              { type: 'error', content: errorContent }
             ]);
             setIsRunning(false);
             break;
@@ -167,12 +195,19 @@ var isValid = function(s) {
           case 'system':
             setTerminalOutput(prev => [
               ...prev,
-              { type: 'system', content: message.content }
+              { type: 'system', content: String(message.content) }
             ]);
             break;
             
           default:
+            // Handle any other message types or direct string content
             console.log('Unknown message type:', message);
+            if (typeof message === 'object') {
+              setTerminalOutput(prev => [
+                ...prev,
+                { type: 'output', content: JSON.stringify(message) }
+              ]);
+            }
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -424,10 +459,10 @@ var isValid = function(s) {
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && activeSocket) {
                   const input = e.target.value;
-                  // Send input to WebSocket
+                  // Send input to WebSocket with the correct format
                   activeSocket.send(JSON.stringify({
-                    type: 'input',
-                    content: { text: input }
+                    "type": "input",
+                    "content": input
                   }));
                   
                   // Add input to terminal output
