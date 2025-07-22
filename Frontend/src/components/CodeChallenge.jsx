@@ -16,12 +16,10 @@ const CodeChallenge = () => {
   // Map frontend language names to backend language identifiers
   const getLanguageIdentifier = (uiLanguage) => {
     const languageMap = {
-      'javascript': 'javascript',
       'python': 'python',
       'java': 'java',
       'c++': 'cpp',
-      'c': 'c',
-      'go': 'golang'
+      'c': 'c'
     };
     return languageMap[uiLanguage.toLowerCase()] || uiLanguage.toLowerCase();
   };
@@ -131,17 +129,6 @@ int main() {
   // Write your solution here
   
   return 0;
-}`,
-      'Go': `package main
-
-import (
-  "fmt"
-)
-
-// ${problem.title} solution
-func main() {
-  // Write your solution here
-  
 }`,
       'Python': `# ${problem.title}
 def solution():
@@ -452,12 +439,10 @@ int main() {
                 onChange={(e) => setLanguage(e.target.value)}
                 className="language-selector"
               >
-                <option value="JavaScript">JavaScript</option>
                 <option value="Python">Python</option>
                 <option value="Java">Java</option>
                 <option value="C++">C++</option>
                 <option value="C">C</option>
-                <option value="Go">Go</option>
               </select>
               
               <button 
@@ -491,7 +476,7 @@ int main() {
             <Editor
               height="100%"
               defaultLanguage="javascript"
-              language={language.toLowerCase() === 'go' ? 'go' : language.toLowerCase()}
+              language={language.toLowerCase()}
               value={code}
               onChange={(value) => setCode(value)}
               theme="vs-dark"
