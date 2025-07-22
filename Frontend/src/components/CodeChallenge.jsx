@@ -12,6 +12,19 @@ const CodeChallenge = () => {
   const [activeSocket, setActiveSocket] = useState(null);
   const [submissionId, setSubmissionId] = useState(null);
   const socketRef = useRef(null);
+  
+  // Map frontend language names to backend language identifiers
+  const getLanguageIdentifier = (uiLanguage) => {
+    const languageMap = {
+      'javascript': 'javascript',
+      'python': 'python',
+      'java': 'java',
+      'c++': 'cpp',
+      'c': 'c',
+      'go': 'golang'
+    };
+    return languageMap[uiLanguage.toLowerCase()] || uiLanguage.toLowerCase();
+  };
 
   // Example problem data
   const problems = {
@@ -99,12 +112,72 @@ var isValid = function(s) {
     }
   };
 
+  // Get appropriate starter code based on language
+  const getStarterCode = (problem, lang) => {
+    // Default JavaScript starter code is in the problem object
+    if (lang === 'JavaScript') {
+      return problem.starterCode;
+    }
+    
+    // Language-specific starter code templates
+    const templates = {
+      'C': `#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+// ${problem.title} solution
+
+int main() {
+  // Write your solution here
+  
+  return 0;
+}`,
+      'Go': `package main
+
+import (
+  "fmt"
+)
+
+// ${problem.title} solution
+func main() {
+  // Write your solution here
+  
+}`,
+      'Python': `# ${problem.title}
+def solution():
+  # Write your solution here
+  pass
+
+if __name__ == "__main__":
+  solution()`,
+      'Java': `public class Solution {
+  // ${problem.title}
+  public static void main(String[] args) {
+    // Write your solution here
+    
+  }
+}`,
+      'C++': `#include <iostream>
+#include <vector>
+using namespace std;
+
+// ${problem.title} solution
+int main() {
+  // Write your solution here
+  
+  return 0;
+}`
+    };
+    
+    return templates[lang] || problem.starterCode;
+  };
+
   // Set initial code based on active problem
   useEffect(() => {
     if (problems[activeQuestion]) {
-      setCode(problems[activeQuestion].starterCode);
+      setCode(getStarterCode(problems[activeQuestion], language));
     }
-  }, [activeQuestion]);
+  }, [activeQuestion, language]);
   
   // Cleanup WebSocket connection on unmount
   useEffect(() => {
@@ -248,7 +321,7 @@ var isValid = function(s) {
         },
         body: JSON.stringify({
           code: code,
-          language: language.toLowerCase(),
+          language: getLanguageIdentifier(language),
           input: '',  // Add input if needed
         }),
       });
@@ -289,7 +362,7 @@ var isValid = function(s) {
         },
         body: JSON.stringify({
           code: code,
-          language: language.toLowerCase(),
+          language: getLanguageIdentifier(language),
           input: '',
           problemId: problems[activeQuestion].id
         }),
@@ -383,6 +456,8 @@ var isValid = function(s) {
                 <option value="Python">Python</option>
                 <option value="Java">Java</option>
                 <option value="C++">C++</option>
+                <option value="C">C</option>
+                <option value="Go">Go</option>
               </select>
               
               <button 
@@ -416,7 +491,7 @@ var isValid = function(s) {
             <Editor
               height="100%"
               defaultLanguage="javascript"
-              language={language.toLowerCase()}
+              language={language.toLowerCase() === 'go' ? 'go' : language.toLowerCase()}
               value={code}
               onChange={(value) => setCode(value)}
               theme="vs-dark"
