@@ -16,12 +16,32 @@ const CodeChallenge = () => {
   // Map frontend language names to backend language identifiers
   const getLanguageIdentifier = (uiLanguage) => {
     const languageMap = {
+      'javascript': 'javascript',
       'python': 'python',
       'java': 'java',
       'c++': 'cpp',
       'c': 'c'
     };
+    // Important: make sure we convert to lowercase to match the backend's expected format
     return languageMap[uiLanguage.toLowerCase()] || uiLanguage.toLowerCase();
+  };
+  
+  // Reset execution state to allow rerunning
+  const resetExecutionState = () => {
+    setIsRunning(false);
+    
+    // Properly close the socket if it exists and is open
+    if (socketRef.current) {
+      if (socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.close();
+      }
+      socketRef.current = null;
+    }
+    
+    // Ensure activeSocket is also nullified
+    setActiveSocket(null);
+    
+    console.log('Execution state reset, buttons should be enabled');
   };
 
   // Example problem data
@@ -112,13 +132,9 @@ var isValid = function(s) {
 
   // Get appropriate starter code based on language
   const getStarterCode = (problem, lang) => {
-    // Default JavaScript starter code is in the problem object
-    if (lang === 'JavaScript') {
-      return problem.starterCode;
-    }
-    
     // Language-specific starter code templates
     const templates = {
+      'JavaScript': problem.starterCode,
       'C': `#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -133,6 +149,8 @@ int main() {
       'Python': `# ${problem.title}
 def solution():
   # Write your solution here
+  # Use input() for user input in Python
+  # Example: name = input("Enter your name: ")
   pass
 
 if __name__ == "__main__":
@@ -174,14 +192,47 @@ int main() {
       }
     };
   }, []);
+  
+  // Set a safety timeout to ensure buttons are re-enabled if execution hangs
+  useEffect(() => {
+    let safetyTimer = null;
+    
+    if (isRunning) {
+      // If execution is running for more than 30 seconds, reset state
+      safetyTimer = setTimeout(() => {
+        console.log('Safety timeout reached, re-enabling buttons');
+        resetExecutionState();
+      }, 30000);
+    }
+    
+    return () => {
+      if (safetyTimer) clearTimeout(safetyTimer);
+    };
+  }, [isRunning]);
 
   // Connect to WebSocket
   const connectToWebSocket = (id) => {
-    // Close existing connection if any
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.close();
+    console.log('Connecting to WebSocket with ID:', id);
+    
+    // Force close any existing connections
+    if (socketRef.current) {
+      console.log('Closing existing socket, state:', socketRef.current.readyState);
+      socketRef.current.onclose = null; // Remove existing handler to avoid conflicts
+      socketRef.current.onerror = null;
+      socketRef.current.onmessage = null;
+      
+      if (socketRef.current.readyState !== WebSocket.CLOSED) {
+        socketRef.current.close();
+      }
+      socketRef.current = null;
+    }
+    
+    if (activeSocket) {
+      console.log('Clearing active socket reference');
+      setActiveSocket(null);
     }
 
+    console.log('Creating new WebSocket connection');
     const wsUrl = `ws://localhost:8080/api/ws/terminal/${id}`;
     const socket = new WebSocket(wsUrl);
     
@@ -193,7 +244,7 @@ int main() {
     socket.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('WebSocket message received:', message);
+        console.log('WebSocket message received:', message, 'Current isRunning state:', isRunning);
         
         switch (message.type) {
           case 'output':
@@ -217,10 +268,14 @@ int main() {
           
           case 'status':
             let statusText = '';
+            let statusValue = '';
+            
             if (typeof message.content === 'object') {
               statusText = `Status: ${message.content.status}`;
+              statusValue = message.content.status;
             } else {
               statusText = `Status: ${message.content}`;
+              statusValue = message.content;
             }
             
             setTerminalOutput(prev => [
@@ -229,11 +284,11 @@ int main() {
             ]);
             
             // If status contains "completed" or "failed", stop running
-            if ((typeof message.content === 'string' && 
-                (message.content.includes('completed') || message.content.includes('failed'))) ||
-                (message.content.status && 
-                (message.content.status.includes('completed') || message.content.status.includes('failed')))) {
-              setIsRunning(false);
+            if (statusValue.includes('completed') || statusValue.includes('failed')) {
+              console.log('Execution completed or failed, stopping');
+              setTimeout(() => {
+                setIsRunning(false);
+              }, 500); // Small delay to ensure UI updates properly
             }
             break;
           
@@ -249,14 +304,29 @@ int main() {
               ...prev,
               { type: 'error', content: errorContent }
             ]);
-            setIsRunning(false);
+            
+            console.log('Error received, enabling buttons');
+            setTimeout(() => {
+              setIsRunning(false);
+            }, 500); // Small delay to ensure UI updates properly
             break;
           
           case 'system':
+            const systemContent = String(message.content);
             setTerminalOutput(prev => [
               ...prev,
-              { type: 'system', content: String(message.content) }
+              { type: 'system', content: systemContent }
             ]);
+            
+            // Check for connection closing message which indicates execution is complete
+            if (systemContent.includes('Connection will close') || 
+                systemContent.includes('completed successfully') ||
+                systemContent.includes('Execution completed')) {
+              console.log('System message indicates completion, enabling buttons');
+              setTimeout(() => {
+                setIsRunning(false);
+              }, 500);
+            }
             break;
             
           default:
@@ -280,57 +350,96 @@ int main() {
         ...prev,
         { type: 'error', content: 'WebSocket connection error' }
       ]);
-      setIsRunning(false);
+      
+      console.log('WebSocket error, enabling buttons');
+      setTimeout(() => {
+        setIsRunning(false);
+      }, 500); // Small delay to ensure UI updates properly
     };
     
     socket.onclose = () => {
       console.log('WebSocket connection closed');
       setActiveSocket(null);
+      
+      // Ensure buttons are re-enabled when the connection closes
+      setTimeout(() => {
+        resetExecutionState();
+      }, 100);
     };
     
+    // Set the socket reference early to ensure we can clean it up if needed
     socketRef.current = socket;
     return socket;
   };
   
   // Handle code execution
   const runCode = async () => {
-    setIsRunning(true);
-    setTerminalOutput([
-      { type: 'system', content: `Running ${problems[activeQuestion].id}...` }
-    ]);
+    console.log('Run button clicked, current state:', { 
+      isRunning, 
+      socketState: activeSocket ? activeSocket.readyState : 'no socket',
+      socketRefState: socketRef.current ? socketRef.current.readyState : 'no socket ref'
+    });
+
+    // First make sure previous connections are fully closed
+    resetExecutionState();
     
-    try {
-      // Submit code to the backend
-      const response = await fetch('http://localhost:8080/api/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code: code,
-          language: getLanguageIdentifier(language),
-          input: '',  // Add input if needed
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
+    // Increase the delay to ensure clean state before starting new execution
+    setTimeout(async () => {
+      // Double-check socket state before proceeding
+      if (activeSocket || socketRef.current) {
+        console.warn('Socket still exists after reset, forcing cleanup');
+        if (activeSocket && activeSocket.readyState !== WebSocket.CLOSED) {
+          activeSocket.close();
+        }
+        if (socketRef.current && socketRef.current.readyState !== WebSocket.CLOSED) {
+          socketRef.current.close();
+        }
+        socketRef.current = null;
+        setActiveSocket(null);
+        
+        // Extra delay to ensure socket is fully closed
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      const data = await response.json();
-      setSubmissionId(data.id);
-      
-      // Connect to WebSocket for real-time updates
-      connectToWebSocket(data.id);
-      
-    } catch (error) {
-      console.error('Error submitting code:', error);
-      setTerminalOutput(prev => [
-        ...prev,
-        { type: 'error', content: `Error: ${error.message}` }
+      setIsRunning(true);
+      setTerminalOutput([
+        { type: 'system', content: `Running ${problems[activeQuestion].id}...` }
       ]);
-      setIsRunning(false);
-    }
+      
+      try {
+        // Submit code to the backend
+        const response = await fetch('http://localhost:8080/api/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            code: code,
+            language: getLanguageIdentifier(language),
+            input: '',
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        setSubmissionId(data.id);
+        
+        // Connect to WebSocket for real-time updates
+        connectToWebSocket(data.id);
+        
+      } catch (error) {
+        console.error('Error submitting code:', error);
+        setTerminalOutput(prev => [
+          ...prev,
+          { type: 'error', content: `Error: ${error.message}` }
+        ]);
+        
+        resetExecutionState();
+      }
+    }, 200); // Increased delay to ensure clean state
   };
 
   // Handle code submission
@@ -394,6 +503,18 @@ int main() {
     );
   };
 
+  // Add this useEffect to monitor socket state
+  useEffect(() => {
+    // If we have an active socket but aren't running, we should clean up
+    if (activeSocket && !isRunning) {
+      console.log('Cleaning up inactive socket');
+      if (activeSocket.readyState === WebSocket.OPEN) {
+        activeSocket.close();
+      }
+      setActiveSocket(null);
+    }
+  }, [activeSocket, isRunning]);
+
   return (
     <div className="code-challenge-container">
       <header className="code-challenge-header">
@@ -439,6 +560,7 @@ int main() {
                 onChange={(e) => setLanguage(e.target.value)}
                 className="language-selector"
               >
+                <option value="JavaScript">JavaScript</option>
                 <option value="Python">Python</option>
                 <option value="Java">Java</option>
                 <option value="C++">C++</option>
@@ -458,16 +580,34 @@ int main() {
                 className="run-btn"
                 onClick={runCode}
                 disabled={isRunning}
+                title={isRunning ? "Code execution in progress..." : "Run code"}
               >
-                <Play size={16} /> Run
+                {isRunning ? (
+                  <>
+                    <span className="loading-spinner"></span> Running...
+                  </>
+                ) : (
+                  <>
+                    <Play size={16} /> Run
+                  </>
+                )}
               </button>
               
               <button 
                 className="submit-btn"
                 onClick={submitCode}
                 disabled={isRunning}
+                title={isRunning ? "Code execution in progress..." : "Submit solution"}
               >
-                <Send size={16} /> Submit
+                {isRunning ? (
+                  <>
+                    <span className="loading-spinner"></span> Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} /> Submit
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -475,8 +615,8 @@ int main() {
           <div className="editor-container">
             <Editor
               height="100%"
-              defaultLanguage="javascript"
-              language={language.toLowerCase()}
+              defaultLanguage="python"
+              language={language.toLowerCase() === 'c++' ? 'cpp' : language.toLowerCase()}
               value={code}
               onChange={(value) => setCode(value)}
               theme="vs-dark"
@@ -516,23 +656,92 @@ int main() {
               className="terminal-input" 
               placeholder="Type here..."
               disabled={!isRunning}
+              // Update the ref callback
+              ref={(inputEl) => {
+                // Auto-focus input when isRunning changes to true
+                if (inputEl && isRunning) {
+                  inputEl.focus();
+                  // Clear any previous input
+                  inputEl.value = '';
+                }
+              }}
+              onKeyDown={(e) => { // Change from onKeyPress to onKeyDown for better cross-browser support
+                if (e.key === 'Enter') {
+                  e.preventDefault(); // Prevent default to avoid form submissions
+                  const input = e.target.value.trim();
+                  
+                  if (!input) return; // Skip empty input
+                  
+                  if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+                    try {
+                      // Send input to server
+                      activeSocket.send(JSON.stringify({
+                        "type": "input",
+                        "content": input
+                      }));
+                      
+                      // Add input to terminal output
+                      setTerminalOutput(prev => [
+                        ...prev,
+                        { type: 'system', content: `$ ${input}` }
+                      ]);
+                      
+                      // Clear the input field
+                      e.target.value = '';
+                    } catch (error) {
+                      console.error("Error sending input:", error);
+                      setTerminalOutput(prev => [
+                        ...prev,
+                        { type: 'error', content: `Failed to send input: ${error.message}` }
+                      ]);
+                    }
+                  } else {
+                    // Better error message with socket state information
+                    const socketState = activeSocket ? 
+                      ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][activeSocket.readyState] : 
+                      'NO_SOCKET';
+                      
+                    console.log(`Cannot send input: Socket state is ${socketState}`);
+                    setTerminalOutput(prev => [
+                      ...prev,
+                      { type: 'error', content: `Cannot send input: connection not available (${socketState})` }
+                    ]);
+                  }
+                }
+              }}
               onKeyPress={(e) => {
-                if (e.key === 'Enter' && activeSocket) {
+                if (e.key === 'Enter' && activeSocket && activeSocket.readyState === WebSocket.OPEN) {
                   const input = e.target.value;
                   // Send input to WebSocket with the correct format
-                  activeSocket.send(JSON.stringify({
-                    "type": "input",
-                    "content": input
-                  }));
-                  
-                  // Add input to terminal output
-                  setTerminalOutput(prev => [
-                    ...prev,
-                    { type: 'system', content: `$ ${input}` }
-                  ]);
-                  
-                  // Clear the input field
-                  e.target.value = '';
+                  try {
+                    activeSocket.send(JSON.stringify({
+                      "type": "input",
+                      "content": input
+                    }));
+                    
+                    // Add input to terminal output
+                    setTerminalOutput(prev => [
+                      ...prev,
+                      { type: 'system', content: `$ ${input}` }
+                    ]);
+                    
+                    // Clear the input field
+                    e.target.value = '';
+                  } catch (error) {
+                    console.error("Error sending input:", error);
+                    setTerminalOutput(prev => [
+                      ...prev,
+                      { type: 'error', content: `Failed to send input: ${error.message}` }
+                    ]);
+                  }
+                } else if (e.key === 'Enter') {
+                  // Inform user if socket isn't available
+                  if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
+                    setTerminalOutput(prev => [
+                      ...prev,
+                      { type: 'error', content: `Cannot send input: connection closed` }
+                    ]);
+                  }
                 }
               }}
             />

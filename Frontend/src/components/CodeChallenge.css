@@ -115,7 +115,21 @@
   font-family: 'Consolas', 'Courier New', monospace;
 }
 
-/* Removed problem examples styles */
+.problem-examples h2 {
+  font-size: 18px;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.example-box {
+  background-color: #161616;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 15px;
+  line-height: 1.5;
+  font-family: 'Consolas', 'Courier New', monospace;
+  border-left: 3px solid #444;
+}
 
 .editor-section {
   flex: 1;
