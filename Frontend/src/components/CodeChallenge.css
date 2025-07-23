@@ -12,15 +12,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
+  padding: 20px 20px;
   background-color: #1e1e1e;
   border-bottom: 1px solid #333;
 }
 
 .code-challenge-header h1 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 500;
+  font-size: 25px;
+  font-weight: 600;
 }
 
 .sign-in-btn {
@@ -43,7 +43,7 @@
 
 .problem-number {
   margin: 0;
-  font-size: 16px;
+  font-size: 10px;
   font-weight: 500;
 }
 
@@ -62,15 +62,14 @@
 }
 
 .problem-tabs {
-  display: flex;
   width: 100%;
   height: 40px;
   border-bottom: 1px solid #333;
 }
 
 .problem-tabs button {
-  min-width: 120px;
-  padding: 0 20px;
+  min-width: 70px;
+  padding: 0 15px;
   background-color: #252526;
   color: #d4d4d4;
   border: none;
@@ -219,6 +218,7 @@
 .editor-container {
   flex: 1;
   overflow: hidden;
+  background-color: #000000;
 }
 
 .terminal-section {

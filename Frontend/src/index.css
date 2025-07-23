@@ -1,17 +1,17 @@
 :root {
-  --vscode-background: #1e1e1e;
+  --vscode-background: #000000;
   --vscode-foreground: #d4d4d4;
   --vscode-activityBar-background: #333333;
   --vscode-activityBar-foreground: #ffffff;
   --vscode-activityBar-inactiveForeground: #ffffff80;
   --vscode-sideBar-background: #252526;
   --vscode-sideBar-foreground: #cccccc;
-  --vscode-editor-background: #1e1e1e;
+  --vscode-editor-background: #000000;
   --vscode-statusBar-background: #007acc;
   --vscode-statusBar-foreground: #ffffff;
-  --vscode-panel-background: #1e1e1e;
+  --vscode-panel-background: #000000;
   --vscode-panel-border: #80808059;
-  --vscode-tab-activeBackground: #1e1e1e;
+  --vscode-tab-activeBackground: #000000;
   --vscode-tab-inactiveBackground: #2d2d2d;
   --vscode-tab-activeForeground: #ffffff;
   --vscode-tab-inactiveForeground: #ffffff80;
@@ -1040,15 +1040,17 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 16px;
+  padding: 12px 16px;
   background-color: var(--vscode-background);
   border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  
 }
 
 .code-challenge-header h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: 25px;
   font-weight: 400;
+  font-weight: bold;
 }
 
 .sign-in-btn {
@@ -1085,7 +1087,7 @@ body {
 .problem-tabs {
   display: flex;
   flex-direction: column;
-  width: 130px;
+  width: 80px;
   border-right: 1px solid rgba(128, 128, 128, 0.35);
 }
 

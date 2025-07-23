@@ -522,9 +522,9 @@ int main() {
         <button className="sign-in-btn">Sign In</button>
       </header>
       
-      <div className="code-challenge-problem-nav">
+      {/* <div className="code-challenge-problem-nav">
         <h3 className="problem-number">1. {problems["Q.1"].title}</h3>
-      </div>
+      </div> */}
       
       <div className="code-challenge-main">
         <div className="problem-tabs">
@@ -567,12 +567,7 @@ int main() {
                 <option value="C">C</option>
               </select>
               
-              <button 
-                className={`auto-btn ${autoSelected ? 'auto-selected' : ''}`}
-                onClick={() => setAutoSelected(!autoSelected)}
-              >
-                Auto
-              </button>
+              
             </div>
             
             <div className="editor-actions">
@@ -619,7 +614,7 @@ int main() {
               language={language.toLowerCase() === 'c++' ? 'cpp' : language.toLowerCase()}
               value={code}
               onChange={(value) => setCode(value)}
-              theme="vs-dark"
+              theme="hc-black"
               options={{
                 fontSize: 14,
                 minimap: { enabled: false },
@@ -634,11 +629,11 @@ int main() {
       <div className="terminal-section">
         <div className="terminal-header">
           <span>Terminal</span>
-          <div className="terminal-controls">
+          {/* <div className="terminal-controls">
             <button className="terminal-btn">⊞</button>
             <button className="terminal-btn">□</button>
             <button className="terminal-btn">✕</button>
-          </div>
+          </div> */}
         </div>
         <div className="terminal-content">
           {terminalOutput.map((line, index) => (
