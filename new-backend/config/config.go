@@ -90,7 +90,7 @@ func getLanguageConfigs() map[string]LanguageConfig {
 			Image:       "eclipse-temurin:11-jdk",
 			MemoryLimit: "400m",
 			CPULimit:    "0.5",
-			TimeoutSec:  60,
+			TimeoutSec:  100,
 			CompileCmd:  []string{"javac"},
 			RunCmd:      []string{"java"},
 			FileExt:     ".java",
