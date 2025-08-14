@@ -1,0 +1,56 @@
+FROM golang:1.19-alpine AS builder
+
+# Install git and required dependencies
+RUN apk update && apk add --no-cache git
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod and sum files
+COPY go.mod go.sum* ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o monaco-backend .
+
+# Use a smaller image for the final container
+FROM alpine:latest
+
+# Install Docker client and cloudflared
+RUN apk update && apk add --no-cache docker-cli curl && \
+    curl -L --output cloudflared.tgz https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.tgz && \
+    tar -xzf cloudflared.tgz && \
+    chmod +x cloudflared && \
+    mv cloudflared /usr/local/bin/ && \
+    rm cloudflared.tgz
+
+# Create directories for cloudflared
+RUN mkdir -p /etc/cloudflared
+
+# Copy the certificate file and config
+COPY cert.pem /etc/cloudflared/cert.pem
+COPY config.json /etc/cloudflared/config.json
+
+# Copy the binary from builder
+COPY --from=builder /app/monaco-backend /monaco-backend
+
+# Add startup script
+RUN echo '#!/bin/sh\n\
+# Start the backend\n\
+/monaco-backend & \n\
+# Wait for backend to start\n\
+sleep 5\n\
+# Start cloudflared tunnel using config file\n\
+cloudflared tunnel --no-autoupdate run --config /etc/cloudflared/config.json\n\
+' > /start.sh && chmod +x /start.sh
+
+# Expose port for local access
+EXPOSE 8080
+
+# Run the startup script
+ENTRYPOINT ["/start.sh"]

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.tunnel
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Port is only exposed locally, traffic comes through the tunnel
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      - PORT=8080
+      - CONCURRENT_EXECUTIONS=5
+      - QUEUE_CAPACITY=100
+      - DEFAULT_TIMEOUT=30
+      - SANDBOX_NETWORK_DISABLED=true
+      - SANDBOX_PIDS_LIMIT=50
+    # Isolated network to prevent conflicts with host cloudflared
+    networks:
+      - monaco-backend-network
+
+networks:
+  monaco-backend-network:
+    driver: bridge

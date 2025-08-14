@@ -1,0 +1,15 @@
+{
+  "tunnel": "monaco-backend-tunnel",
+  "credentials-file": "/etc/cloudflared/cert.pem",
+  "ingress": [
+    {
+      "hostname": "api.ishikabhoyar.tech",
+      "service": "http://localhost:8080"
+    },
+    {
+      "service": "http_status:404"
+    }
+  ],
+  "protocol": "http2",
+  "loglevel": "info"
+}
