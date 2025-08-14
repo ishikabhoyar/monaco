@@ -40,9 +40,21 @@ COPY config.json /etc/cloudflared/config.json
 # Copy the binary from builder
 COPY --from=builder /app/monaco-backend /monaco-backend
 
-# Copy the startup script
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+# Create startup script inside the container to ensure correct line endings
+RUN printf '#!/bin/sh\\n' > /start.sh && \
+    printf '# Start the backend\\n' >> /start.sh && \
+    printf '/monaco-backend &\\n' >> /start.sh && \
+    printf 'BACKEND_PID=$!\\n' >> /start.sh && \
+    printf 'echo "Backend started with PID: $BACKEND_PID"\\n\\n' >> /start.sh && \
+    printf '# Wait for backend to start\\n' >> /start.sh && \
+    printf 'echo "Waiting for backend to initialize..."\\n' >> /start.sh && \
+    printf 'sleep 5\\n\\n' >> /start.sh && \
+    printf '# Start cloudflared tunnel using config file\\n' >> /start.sh && \
+    printf 'echo "Starting Cloudflare tunnel to api.ishikabhoyar.tech..."\\n' >> /start.sh && \
+    printf 'cloudflared tunnel --no-autoupdate run --config /etc/cloudflared/config.json\\n\\n' >> /start.sh && \
+    printf '# If cloudflared exits, kill the backend too\\n' >> /start.sh && \
+    printf 'kill $BACKEND_PID\\n' >> /start.sh && \
+    chmod +x /start.sh
 
 # Expose port for local access
 EXPOSE 8080
