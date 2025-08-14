@@ -40,15 +40,9 @@ COPY config.json /etc/cloudflared/config.json
 # Copy the binary from builder
 COPY --from=builder /app/monaco-backend /monaco-backend
 
-# Add startup script
-RUN echo '#!/bin/sh\n\
-# Start the backend\n\
-/monaco-backend & \n\
-# Wait for backend to start\n\
-sleep 5\n\
-# Start cloudflared tunnel using config file\n\
-cloudflared tunnel --no-autoupdate run --config /etc/cloudflared/config.json\n\
-' > /start.sh && chmod +x /start.sh
+# Copy the startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
 # Expose port for local access
 EXPOSE 8080
