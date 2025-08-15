@@ -16,6 +16,9 @@ services:
       - DEFAULT_TIMEOUT=30
       - SANDBOX_NETWORK_DISABLED=true
       - SANDBOX_PIDS_LIMIT=50
+      # Define cloudflared environment variables
+      - TUNNEL_ORIGIN_CERT=/etc/cloudflared/cert.pem
+      - NO_AUTOUPDATE=true
     # Isolated network to prevent conflicts with host cloudflared
     networks:
       - monaco-backend-network
