@@ -55,7 +55,7 @@ RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:cloudflared]" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.json run" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=cloudflared tunnel --url http://localhost:8080 run" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \

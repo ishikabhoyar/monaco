@@ -1,5 +1,5 @@
 {
-  "tunnel": "monaco-backend-tunnel",
+  "tunnel": "YOUR_TUNNEL_ID_HERE",
   "credentials-file": "/etc/cloudflared/cert.pem",
   "ingress": [
     {
