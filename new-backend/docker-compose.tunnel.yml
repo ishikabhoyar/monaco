@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -7,7 +5,7 @@ services:
       dockerfile: Dockerfile.tunnel
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - //var/run/docker.sock:/var/run/docker.sock
     # Port is only exposed locally, traffic comes through the tunnel
     ports:
       - "127.0.0.1:8080:8080"

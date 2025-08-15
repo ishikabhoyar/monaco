@@ -18,20 +18,19 @@ COPY . .
 # Build the application with optimizations
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o monaco-backend .
 
-# Get cloudflared from official image
-FROM cloudflare/cloudflared:latest AS cloudflared
-
-# Use a smaller image for the final container
+# Final stage
 FROM alpine:latest
 
-# Install Docker client
-RUN apk update && apk add --no-cache docker-cli
+# Install Docker client and supervisor
+RUN apk update && apk add --no-cache docker-cli supervisor wget
+
+# Get cloudflared directly from GitHub (more reliable than the tarball)
+RUN wget -O cloudflared https://github.com/cloudflare/cloudflared/releases/download/2023.5.0/cloudflared-linux-amd64 && \
+    chmod +x cloudflared && \
+    mv cloudflared /usr/local/bin/
 
 # Create directories for cloudflared
 RUN mkdir -p /etc/cloudflared
-
-# Copy cloudflared from official image
-COPY --from=cloudflared /usr/local/bin/cloudflared /usr/local/bin/cloudflared
 
 # Copy the certificate file and config
 COPY cert.pem /etc/cloudflared/cert.pem
@@ -40,24 +39,32 @@ COPY config.json /etc/cloudflared/config.json
 # Copy the binary from builder
 COPY --from=builder /app/monaco-backend /monaco-backend
 
-# Create startup script inside the container to ensure correct line endings
-RUN printf '#!/bin/sh\\n' > /start.sh && \
-    printf '# Start the backend\\n' >> /start.sh && \
-    printf '/monaco-backend &\\n' >> /start.sh && \
-    printf 'BACKEND_PID=$!\\n' >> /start.sh && \
-    printf 'echo "Backend started with PID: $BACKEND_PID"\\n\\n' >> /start.sh && \
-    printf '# Wait for backend to start\\n' >> /start.sh && \
-    printf 'echo "Waiting for backend to initialize..."\\n' >> /start.sh && \
-    printf 'sleep 5\\n\\n' >> /start.sh && \
-    printf '# Start cloudflared tunnel using config file\\n' >> /start.sh && \
-    printf 'echo "Starting Cloudflare tunnel to api.ishikabhoyar.tech..."\\n' >> /start.sh && \
-    printf 'cloudflared tunnel --no-autoupdate run --config /etc/cloudflared/config.json\\n\\n' >> /start.sh && \
-    printf '# If cloudflared exits, kill the backend too\\n' >> /start.sh && \
-    printf 'kill $BACKEND_PID\\n' >> /start.sh && \
-    chmod +x /start.sh
+# Create supervisord config
+RUN mkdir -p /etc/supervisor/conf.d/
+RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
+    echo "nodaemon=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "user=root" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "[program:backend]" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=/monaco-backend" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile=/dev/stderr" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "[program:cloudflared]" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=cloudflared tunnel --no-autoupdate run --config /etc/cloudflared/config.json" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile=/dev/stderr" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf
 
 # Expose port for local access
 EXPOSE 8080
 
-# Run the startup script
-ENTRYPOINT ["/start.sh"]
+# Use supervisord to manage processes
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
