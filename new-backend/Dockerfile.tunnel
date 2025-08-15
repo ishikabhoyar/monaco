@@ -37,6 +37,9 @@ COPY cert.pem /etc/cloudflared/cert.pem
 COPY credentials.json /etc/cloudflared/credentials.json
 COPY config.json /etc/cloudflared/config.json
 
+# Setup DNS routing for the tunnel (only needs to be done once)
+RUN cloudflared tunnel route dns 5d2682ef-0b5b-47e5-b0fa-ad48968ce016 api.ishikabhoyar.tech || echo "DNS routing already set up or failed - continuing anyway"
+
 # Copy the binary from builder
 COPY --from=builder /app/monaco-backend /monaco-backend
 
