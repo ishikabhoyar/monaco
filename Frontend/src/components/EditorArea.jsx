@@ -136,11 +136,6 @@ const EditorArea = ({
   useEffect(() => {
     localStorage.setItem("vscode-clone-files", JSON.stringify(files));
   }, [files]);
-  
-  useEffect(() => {
-    localStorage.setItem("vscode-clone-structure", JSON.stringify(fileStructure));
-  }, [fileStructure]);
-
   // Add this effect to handle editor resize when sidebar changes
   useEffect(() => {
     // Force editor to readjust layout when sidebar visibility changes

@@ -1239,6 +1239,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: var(--vscode-panel-background);
+  padding-bottom: 50px; /* Add padding at the bottom to prevent footer overlap */
 }
 
 .terminal-header {
@@ -1309,4 +1310,103 @@ body {
   flex: 1;
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 14px;
+}
+
+/* Footer Styles */
+.fixed {
+  position: fixed;
+}
+
+.bottom-0 {
+  bottom: 0;
+}
+
+.left-0 {
+  left: 0;
+}
+
+.right-0 {
+  right: 0;
+}
+
+.border-t {
+  border-top-width: 1px;
+  border-top-style: solid;
+}
+
+.border-slate-200\/40 {
+  border-color: rgba(226, 232, 240, 0.4);
+}
+
+.dark\:border-gray-800\/20 {
+  border-color: rgba(31, 41, 55, 0.2);
+}
+
+.bg-white {
+  background-color: #ffffff;
+}
+
+.dark\:bg-\[\#070c1f\] {
+  background-color: #000000;
+}
+
+.footer-bar {
+  background-color: #000000;
+  z-index: 1000;
+  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.h-7 {
+  height: 1.75rem;
+}
+
+.text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.text-slate-500 {
+  color: #64748b;
+}
+
+.dark\:text-gray-500 {
+  color: #6b7280;
+}
+
+.text-slate-400 {
+  color: #94a3b8;
+}
+
+.dark\:text-gray-400 {
+  color: #9ca3af;
+}
+
+.text-red-400 {
+  color: #f87171;
+}
+
+.dark\:text-red-500 {
+  color: #ef4444;
+}
+
+.mx-0\.5 {
+  margin-left: 0.125rem;
+  margin-right: 0.125rem;
+}
+
+/* Make sure the footer appears on top of other elements */
+footer {
+  z-index: 1000;
 }
