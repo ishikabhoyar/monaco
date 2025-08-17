@@ -422,15 +422,36 @@ body {
   padding: 8px;
   font-family: monospace;
   overflow-y: auto;
+  overflow-x: hidden;
   height: calc(100% - 36px); /* Adjust based on your header height */
   background-color: #1e1e1e;
   color: #ddd;
   outline: none; /* Remove focus outline */
+  scrollbar-width: thin;
+  scrollbar-color: #555555 #1e1e1e;
+}
+
+.panel-terminal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel-terminal::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.panel-terminal::-webkit-scrollbar-thumb {
+  background: #555555;
+  border-radius: 4px;
+}
+
+.panel-terminal::-webkit-scrollbar-thumb:hover {
+  background: #666666;
 }
 
 .panel-terminal .terminal-line {
   white-space: pre-wrap;
   margin-bottom: 3px;
+  word-wrap: break-word; /* Ensure long words don't cause horizontal overflow */
 }
 
 .terminal-line {
@@ -1239,7 +1260,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: var(--vscode-panel-background);
-  padding-bottom: 50px; /* Add padding at the bottom to prevent footer overlap */
+  padding-bottom: 30px; /* Reduced padding to keep buttons just above footer */
 }
 
 .terminal-header {
@@ -1275,7 +1296,28 @@ body {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 14px;
   overflow-y: auto;
+  overflow-x: hidden;
   white-space: pre-wrap;
+  max-height: calc(100% - 10px); /* Ensure content doesn't expand beyond container */
+  scrollbar-width: thin;
+  scrollbar-color: #555555 #1e1e1e;
+}
+
+.terminal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-content::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.terminal-content::-webkit-scrollbar-thumb {
+  background: #555555;
+  border-radius: 4px;
+}
+
+.terminal-content::-webkit-scrollbar-thumb:hover {
+  background: #666666;
 }
 
 .terminal-line {
