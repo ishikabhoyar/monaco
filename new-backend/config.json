@@ -1,0 +1,15 @@
+{
+  "tunnel": "5d2682ef-0b5b-47e5-b0fa-ad48968ce016",
+  "credentials-file": "/etc/cloudflared/credentials.json",
+  "ingress": [
+    {
+      "hostname": "api.ishikabhoyar.tech",
+      "service": "http://localhost:8080"
+    },
+    {
+      "service": "http_status:404"
+    }
+  ],
+  "protocol": "http2",
+  "loglevel": "info"
+}

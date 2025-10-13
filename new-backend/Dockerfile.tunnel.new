@@ -1,0 +1,66 @@
+FROM golang:1.19-alpine AS builder
+
+# Install git and required dependencies
+RUN apk update && apk add --no-cache git
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod and sum files
+COPY go.mod go.sum* ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o monaco-backend .
+
+# Final stage
+FROM alpine:latest
+
+# Install Docker client and tools
+RUN apk update && apk add --no-cache docker-cli bash wget
+
+# Get cloudflared directly
+RUN wget -O cloudflared https://github.com/cloudflare/cloudflared/releases/download/2023.7.3/cloudflared-linux-amd64 && \
+    chmod +x cloudflared && \
+    mv cloudflared /usr/local/bin/
+
+# Create directories for cloudflared
+RUN mkdir -p /etc/cloudflared
+
+# Copy the certificate file and config
+COPY cert.pem /etc/cloudflared/cert.pem
+COPY config.json /etc/cloudflared/config.json
+
+# Copy the binary from builder
+COPY --from=builder /app/monaco-backend /monaco-backend
+
+# Create a simple bash script to run both services
+RUN echo '#!/bin/bash\n\
+# Start the backend in the background\n\
+/monaco-backend &\n\
+BACKEND_PID=$!\n\
+echo "Backend started with PID: $BACKEND_PID"\n\
+\n\
+# Wait for backend to start\n\
+echo "Waiting for backend to initialize..."\n\
+sleep 5\n\
+\n\
+# Start cloudflared with proper arguments\n\
+echo "Starting Cloudflare tunnel to api.ishikabhoyar.tech..."\n\
+# Use the specific tunnel name from config.json\n\
+cloudflared tunnel run monaco-backend-tunnel\n\
+\n\
+# If cloudflared exits, kill the backend\n\
+kill $BACKEND_PID\n\
+' > /start.sh && chmod +x /start.sh
+
+# Expose port for local access
+EXPOSE 8080
+
+# Run the startup script
+CMD ["/start.sh"]

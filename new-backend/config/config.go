@@ -8,10 +8,10 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Server     ServerConfig
-	Executor   ExecutorConfig
-	Languages  map[string]LanguageConfig
-	Sandbox    SandboxConfig
+	Server    ServerConfig
+	Executor  ExecutorConfig
+	Languages map[string]LanguageConfig
+	Sandbox   SandboxConfig
 }
 
 // ServerConfig holds server-related configurations
@@ -31,15 +31,15 @@ type ExecutorConfig struct {
 
 // LanguageConfig holds language-specific configurations
 type LanguageConfig struct {
-	Name         string
-	Image        string
-	MemoryLimit  string
-	CPULimit     string
-	TimeoutSec   int
-	CompileCmd   []string
-	RunCmd       []string
-	FileExt      string
-	VersionCmd   []string
+	Name        string
+	Image       string
+	MemoryLimit string
+	CPULimit    string
+	TimeoutSec  int
+	CompileCmd  []string
+	RunCmd      []string
+	FileExt     string
+	VersionCmd  []string
 }
 
 // SandboxConfig holds sandbox-related configurations
@@ -56,11 +56,11 @@ func GetConfig() *Config {
 			Port:         getEnv("PORT", "8080"),
 			ReadTimeout:  time.Duration(getEnvAsInt("READ_TIMEOUT", 15)) * time.Second,
 			WriteTimeout: time.Duration(getEnvAsInt("WRITE_TIMEOUT", 15)) * time.Second,
-			IdleTimeout:  time.Duration(getEnvAsInt("IDLE_TIMEOUT", 60)) * time.Second,
+			IdleTimeout:  time.Duration(getEnvAsInt("IDLE_TIMEOUT", 90)) * time.Second,
 		},
 		Executor: ExecutorConfig{
-			ConcurrentExecutions: getEnvAsInt("CONCURRENT_EXECUTIONS", 5),
-			QueueCapacity:        getEnvAsInt("QUEUE_CAPACITY", 100),
+			ConcurrentExecutions: getEnvAsInt("CONCURRENT_EXECUTIONS", 100),
+			QueueCapacity:        getEnvAsInt("QUEUE_CAPACITY", 1000),
 			DefaultTimeout:       time.Duration(getEnvAsInt("DEFAULT_TIMEOUT", 30)) * time.Second,
 		},
 		Languages: getLanguageConfigs(),
@@ -80,7 +80,7 @@ func getLanguageConfigs() map[string]LanguageConfig {
 			Image:       "python:3.9-slim",
 			MemoryLimit: "100m",
 			CPULimit:    "0.1",
-			TimeoutSec:  30,
+			TimeoutSec:  90,
 			RunCmd:      []string{"python", "-c"},
 			FileExt:     ".py",
 			VersionCmd:  []string{"python", "--version"},
@@ -90,7 +90,7 @@ func getLanguageConfigs() map[string]LanguageConfig {
 			Image:       "eclipse-temurin:11-jdk",
 			MemoryLimit: "400m",
 			CPULimit:    "0.5",
-			TimeoutSec:  60,
+			TimeoutSec:  100,
 			CompileCmd:  []string{"javac"},
 			RunCmd:      []string{"java"},
 			FileExt:     ".java",
@@ -101,7 +101,7 @@ func getLanguageConfigs() map[string]LanguageConfig {
 			Image:       "gcc:latest",
 			MemoryLimit: "100m",
 			CPULimit:    "0.1",
-			TimeoutSec:  30,
+			TimeoutSec:  90,
 			CompileCmd:  []string{"gcc", "-o", "program"},
 			RunCmd:      []string{"./program"},
 			FileExt:     ".c",
@@ -112,7 +112,7 @@ func getLanguageConfigs() map[string]LanguageConfig {
 			Image:       "gcc:latest",
 			MemoryLimit: "100m",
 			CPULimit:    "0.1",
-			TimeoutSec:  30,
+			TimeoutSec:  90,
 			CompileCmd:  []string{"g++", "-o", "program"},
 			RunCmd:      []string{"./program"},
 			FileExt:     ".cpp",
@@ -123,7 +123,7 @@ func getLanguageConfigs() map[string]LanguageConfig {
 			Image:       "node:16-alpine",
 			MemoryLimit: "100m",
 			CPULimit:    "0.1",
-			TimeoutSec:  30,
+			TimeoutSec:  90,
 			RunCmd:      []string{"node", "-e"},
 			FileExt:     ".js",
 			VersionCmd:  []string{"node", "--version"},
@@ -133,7 +133,7 @@ func getLanguageConfigs() map[string]LanguageConfig {
 			Image:       "golang:1.19-alpine",
 			MemoryLimit: "100m",
 			CPULimit:    "0.1",
-			TimeoutSec:  30,
+			TimeoutSec:  90,
 			CompileCmd:  []string{"go", "build", "-o", "program"},
 			RunCmd:      []string{"./program"},
 			FileExt:     ".go",
