@@ -22,7 +22,7 @@ function App() {
                 path="/editor" 
                 element={
                   <ProtectedRoute>
-                    <Header />
+                    {/* <Header /> */}
                     <CodeChallenge />
                     <footer className="footer-bar fixed bottom-0 left-0 right-0 border-t border-slate-200/40 dark:border-gray-800/20 bg-black">
                       <div className="flex items-center justify-center h-7">
