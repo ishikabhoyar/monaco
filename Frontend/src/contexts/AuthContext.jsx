@@ -12,6 +12,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Check for existing session on app load
@@ -22,6 +23,7 @@ export const AuthProvider = ({ children }) => {
         const savedToken = localStorage.getItem('monaco_token');
         if (savedUser && savedToken) {
           setUser(JSON.parse(savedUser));
+          setToken(savedToken);
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -36,54 +38,74 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, googleToken, userInfo = null) => {
-    try {
-      // For Google OAuth login
-      if (googleToken && userInfo) {
-        const userData = {
-          id: userInfo.sub || Date.now(),
+    // For Google OAuth login
+    if (googleToken && userInfo) {
+      // Exchange Google token for our JWT
+      const response = await fetch('http://localhost:5000/api/students/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${googleToken}`
+        },
+        body: JSON.stringify({
           email: email,
-          name: userInfo.name || email.split('@')[0],
-          picture: userInfo.picture || null,
-          loginTime: new Date().toISOString(),
-          googleToken: googleToken
-        };
-
-        setUser(userData);
-        localStorage.setItem('monaco_user', JSON.stringify(userData));
-        localStorage.setItem('monaco_token', googleToken);
-        return true;
+          name: userInfo.name || email.split('@')[0]
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
       
-      // Fallback for demo purposes (though we're moving to Google-only)
-      if (email && email.includes('@')) {
-        const userData = {
-          id: Date.now(),
-          email: email,
-          name: email.split('@')[0],
-          loginTime: new Date().toISOString()
-        };
-
-        setUser(userData);
-        localStorage.setItem('monaco_user', JSON.stringify(userData));
-        localStorage.setItem('monaco_token', 'demo_token');
-        return true;
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Login failed');
       }
-      
-      return false;
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
+
+      const userData = {
+        id: userInfo.sub || Date.now(),
+        email: email,
+        name: userInfo.name || email.split('@')[0],
+        picture: userInfo.picture || null,
+        loginTime: new Date().toISOString(),
+        token: data.token // Store the JWT instead of Google token
+      };
+
+      setUser(userData);
+      localStorage.setItem('monaco_user', JSON.stringify(userData));
+      localStorage.setItem('monaco_token', userData.token);
+      setToken(userData.token);
+      return true;
     }
+    
+    // Fallback for demo purposes (though we're moving to Google-only)
+    if (email && email.includes('@')) {
+      const userData = {
+        id: Date.now(),
+        email: email,
+        name: email.split('@')[0],
+        loginTime: new Date().toISOString()
+      };
+
+      setUser(userData);
+      localStorage.setItem('monaco_user', JSON.stringify(userData));
+      localStorage.setItem('monaco_token', 'demo_token');
+      return true;
+    }
+    
+    return false;
   };
 
   const logout = () => {
     setUser(null);
+    setToken(null);
     localStorage.removeItem('monaco_user');
     localStorage.removeItem('monaco_token');
   };
 
   const value = {
     user,
+    token,
     login,
     logout,
     isAuthenticated: !!user,

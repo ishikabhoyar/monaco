@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from "@monaco-editor/react";
 import { Play, Send } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const CodeChallenge = () => {
+  const [test, setTest] = useState(null);
+  const [questions, setQuestions] = useState([]);
   const [activeQuestion, setActiveQuestion] = useState("Q.1");
   const [language, setLanguage] = useState("JavaScript");
   const [code, setCode] = useState("");
@@ -11,7 +15,85 @@ const CodeChallenge = () => {
   const [autoSelected, setAutoSelected] = useState(true);
   const [activeSocket, setActiveSocket] = useState(null);
   const [submissionId, setSubmissionId] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState(null);
   const socketRef = useRef(null);
+  const { token } = useAuth();
+  const navigate = useNavigate();
+
+  // Load test data from localStorage
+  useEffect(() => {
+    const testData = localStorage.getItem('currentTest');
+    if (testData) {
+      try {
+        const parsedData = JSON.parse(testData);
+        setTest(parsedData);
+        if (parsedData.questions && parsedData.questions.length > 0) {
+          setQuestions(parsedData.questions);
+          // Set initial code from first question
+          const firstQuestion = parsedData.questions[0];
+          setLanguage(firstQuestion.programming_language || 'JavaScript');
+          setCode(firstQuestion.code_template || getDefaultTemplate(firstQuestion.programming_language || 'JavaScript'));
+        }
+      } catch (error) {
+        console.error('Error loading test data:', error);
+      }
+    } else {
+      // No test data, redirect back to tests
+      navigate('/tests');
+    }
+  }, [navigate]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (!test || !test.end_time) return;
+
+    const updateTimer = () => {
+      const now = new Date();
+      const endTime = new Date(test.end_time);
+      const diff = endTime - now;
+
+      if (diff <= 0) {
+        setTimeRemaining('Time Up!');
+        // Optionally auto-submit or redirect
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setTimeRemaining(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateTimer(); // Initial call
+    const timerId = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(timerId);
+  }, [test]);
+
+  // Get default code template for a language
+  const getDefaultTemplate = (lang) => {
+    const templates = {
+      'JavaScript': '// Write your code here\n',
+      'Python': '# Write your code here\n',
+      'Java': 'public class Solution {\n  public static void main(String[] args) {\n    // Write your code here\n  }\n}',
+      'C++': '#include <iostream>\nusing namespace std;\n\nint main() {\n  // Write your code here\n  return 0;\n}',
+      'C': '#include <stdio.h>\n\nint main() {\n  // Write your code here\n  return 0;\n}'
+    };
+    return templates[lang] || '// Write your code here\n';
+  };
+  
+  // Map question index to Q.1, Q.2, Q.3 format
+  const getQuestionIndex = (questionKey) => {
+    const index = parseInt(questionKey.replace('Q.', '')) - 1;
+    return index;
+  };
+
+  // Get current question based on activeQuestion
+  const getCurrentQuestion = () => {
+    const index = getQuestionIndex(activeQuestion);
+    return questions[index] || null;
+  };
   
   // Map frontend language names to backend language identifiers
   const getLanguageIdentifier = (uiLanguage) => {
@@ -179,10 +261,34 @@ int main() {
 
   // Set initial code based on active problem
   useEffect(() => {
-    if (problems[activeQuestion]) {
+    const currentQuestion = getCurrentQuestion();
+    if (currentQuestion) {
+      // Check if there's a saved submission for this question
+      const savedSubmission = localStorage.getItem(`submission_${test?.id}_${currentQuestion.id}`);
+      if (savedSubmission) {
+        try {
+          const submission = JSON.parse(savedSubmission);
+          setCode(submission.code);
+          setLanguage(currentQuestion.programming_language || 'JavaScript');
+          setTerminalOutput([
+            { type: 'system', content: `Loaded your previous submission from ${new Date(submission.timestamp).toLocaleString()}` }
+          ]);
+        } catch (error) {
+          console.error('Error loading saved submission:', error);
+          setLanguage(currentQuestion.programming_language || 'JavaScript');
+          setCode(currentQuestion.code_template || getDefaultTemplate(currentQuestion.programming_language || 'JavaScript'));
+        }
+      } else {
+        setLanguage(currentQuestion.programming_language || 'JavaScript');
+        setCode(currentQuestion.code_template || getDefaultTemplate(currentQuestion.programming_language || 'JavaScript'));
+        setTerminalOutput([]);
+      }
+    } else if (problems[activeQuestion]) {
+      // Fallback to example problems if no real test data
       setCode(getStarterCode(problems[activeQuestion], language));
+      setTerminalOutput([]);
     }
-  }, [activeQuestion, language]);
+  }, [activeQuestion]);
   
   // Cleanup WebSocket connection on unmount
   useEffect(() => {
@@ -402,8 +508,9 @@ int main() {
       }
       
       setIsRunning(true);
+      const currentQuestion = getCurrentQuestion();
       setTerminalOutput([
-        { type: 'system', content: `Running ${problems[activeQuestion].id}...` }
+        { type: 'system', content: `Running ${currentQuestion?.title || problems[activeQuestion]?.id || 'code'}...` }
       ]);
       
       try {
@@ -445,34 +552,61 @@ int main() {
   // Handle code submission
   const submitCode = async () => {
     setIsRunning(true);
+    const currentQuestion = getCurrentQuestion();
     setTerminalOutput([
-      { type: 'system', content: `Submitting solution for ${problems[activeQuestion].id}...` }
+      { type: 'system', content: `Submitting solution for ${currentQuestion?.title || problems[activeQuestion]?.id || 'problem'}...` }
     ]);
     
     try {
-      // Submit code to the backend
-      const response = await fetch('http://localhost:8080/api/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code: code,
-          language: getLanguageIdentifier(language),
-          input: '',
-          problemId: problems[activeQuestion].id
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
+      // If we have real test data, submit to faculty backend
+      if (currentQuestion && test) {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const response = await fetch(`${apiUrl}/api/students/submissions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            testId: test.id,
+            answers: [{
+              questionId: currentQuestion.id,
+              submittedAnswer: code
+            }]
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          setTerminalOutput(prev => [
+            ...prev,
+            { type: 'system', content: '✓ Submission successful!' },
+            { type: 'output', content: `Your answer has been submitted for Question ${getQuestionIndex(activeQuestion) + 1}` },
+            { type: 'output', content: `Test: ${test.title}` },
+            { type: 'system', content: 'You can modify and resubmit your answer anytime before the test ends.' }
+          ]);
+          
+          // Store submission locally
+          localStorage.setItem(`submission_${test.id}_${currentQuestion.id}`, JSON.stringify({
+            code,
+            timestamp: new Date().toISOString()
+          }));
+        } else {
+          throw new Error(data.message || 'Submission failed');
+        }
+        
+        setIsRunning(false);
+        return;
       }
       
-      const data = await response.json();
-      setSubmissionId(data.id);
-      
-      // Connect to WebSocket for real-time updates
-      connectToWebSocket(data.id);
+      // If no test data, show error
+      throw new Error('No test data available. Please start a test from the test list.');
       
     } catch (error) {
       console.error('Error submitting solution:', error);
@@ -486,6 +620,36 @@ int main() {
 
   // Render the current problem
   const renderProblem = () => {
+    const currentQuestion = getCurrentQuestion();
+    
+    // If we have real test question, use it
+    if (currentQuestion) {
+      return (
+        <div className="problem-container">
+          <h1>{currentQuestion.title || `Question ${getQuestionIndex(activeQuestion) + 1}`}</h1>
+          
+          <div className="problem-description">
+            <p>{currentQuestion.question_text || currentQuestion.description}</p>
+            {currentQuestion.constraints && <p><strong>Constraints:</strong> {currentQuestion.constraints}</p>}
+            {currentQuestion.marks && <p><strong>Points:</strong> {currentQuestion.marks}</p>}
+          </div>
+          
+          {currentQuestion.test_cases && currentQuestion.test_cases.length > 0 && (
+            <div className="test-cases">
+              <h3>Example Test Cases:</h3>
+              {currentQuestion.test_cases.slice(0, 2).map((testCase, idx) => (
+                <div key={idx} className="test-case">
+                  <p><strong>Input:</strong> {testCase.input}</p>
+                  <p><strong>Expected Output:</strong> {testCase.expected_output}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Fallback to example problems
     const problem = problems[activeQuestion];
     if (!problem) return null;
 
@@ -518,8 +682,23 @@ int main() {
   return (
     <div className="code-challenge-container">
       <header className="code-challenge-header">
-        <h1>OnScreen Test</h1>
-        <button className="sign-in-btn">Sign In</button>
+        <h1>{test?.title || 'OnScreen Test'}</h1>
+        {timeRemaining && (
+          <div className="timer-display" style={{
+            fontSize: '1.2rem',
+            fontWeight: 'bold',
+            color: timeRemaining === 'Time Up!' ? '#ef4444' : '#10b981',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            {timeRemaining}
+          </div>
+        )}
       </header>
       
       {/* <div className="code-challenge-problem-nav">
@@ -528,24 +707,19 @@ int main() {
       
       <div className="code-challenge-main">
         <div className="problem-tabs">
-          <button 
-            className={activeQuestion === "Q.1" ? "tab-active" : ""} 
-            onClick={() => setActiveQuestion("Q.1")}
-          >
-            Q.1
-          </button>
-          <button 
-            className={activeQuestion === "Q.2" ? "tab-active" : ""} 
-            onClick={() => setActiveQuestion("Q.2")}
-          >
-            Q.2
-          </button>
-          <button 
-            className={activeQuestion === "Q.3" ? "tab-active" : ""} 
-            onClick={() => setActiveQuestion("Q.3")}
-          >
-            Q.3
-          </button>
+          {(questions.length > 0 ? questions : [1, 2, 3]).map((q, idx) => {
+            const questionKey = `Q.${idx + 1}`;
+            return (
+              <button 
+                key={questionKey}
+                className={activeQuestion === questionKey ? "tab-active" : ""} 
+                onClick={() => setActiveQuestion(questionKey)}
+                disabled={questions.length > 0 && idx >= questions.length}
+              >
+                {questionKey}
+              </button>
+            );
+          })}
         </div>
         
         <div className="problem-content">

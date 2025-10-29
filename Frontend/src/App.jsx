@@ -2,8 +2,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './contexts/AuthContext';
 import Login from './components/Login';
+import TestList from './components/TestList';
 import CodeChallenge from "./components/CodeChallenge.jsx";
 import Header from './components/Header';
+import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import "./index.css";
 
@@ -19,23 +21,24 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route 
-                path="/editor" 
+                path="/tests" 
                 element={
                   <ProtectedRoute>
-                    {/* <Header /> */}
-                    <CodeChallenge />
-                    <footer className="footer-bar fixed bottom-0 left-0 right-0 border-t border-slate-200/40 dark:border-gray-800/20 bg-black">
-                      <div className="flex items-center justify-center h-7">
-                        <span className="text-xs text-slate-400 dark:text-gray-400 flex items-center">
-                          Copyright © 2025. Made with
-                          ♡ by Ishika and Arnab.
-                        </span>
-                      </div>
-                    </footer>
+                    <TestList />
+                    <Footer />
                   </ProtectedRoute>
                 } 
               />
-              <Route path="/" element={<Navigate to="/editor" replace />} />
+              <Route 
+                path="/editor" 
+                element={
+                  <ProtectedRoute>
+                    <CodeChallenge />
+                    <Footer />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="/" element={<Navigate to="/tests" replace />} />
             </Routes>
           </div>
         </Router>

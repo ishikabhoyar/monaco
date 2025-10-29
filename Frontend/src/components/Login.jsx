@@ -14,7 +14,7 @@ const Login = () => {
   useEffect(() => {
     const token = localStorage.getItem('monaco_token');
     if (token) {
-      navigate('/editor');
+      navigate('/tests');
     }
   }, [navigate]);
 
@@ -39,7 +39,7 @@ const Login = () => {
         const success = await login(userInfo.email, credentialResponse.credential, userInfo);
         
         if (success) {
-          navigate('/editor');
+          navigate('/tests');
         } else {
           throw new Error('Authentication failed');
         }

@@ -1225,6 +1225,8 @@ body {
   padding: 8px 12px;
   background-color: #252526;
   border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  position: relative;
+  z-index: 200;
 }
 
 .editor-controls {
@@ -1259,6 +1261,8 @@ body {
 .editor-actions {
   display: flex;
   gap: 8px;
+  position: relative;
+  z-index: 150;
 }
 
 .run-btn {
@@ -1673,3 +1677,18 @@ body {
 footer {
   z-index: 1000;
 }
+
+/* Test List Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+.animate-slideUp { animation: slideUp 0.3s ease-out; }
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
