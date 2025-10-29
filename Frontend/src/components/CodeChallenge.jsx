@@ -560,8 +560,8 @@ int main() {
     try {
       // If we have real test data, submit to faculty backend
       if (currentQuestion && test) {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const response = await fetch(`${apiUrl}/api/students/submissions`, {
+        const apiUrl = import.meta.env.VITE_FACULTY_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/students/submissions`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
