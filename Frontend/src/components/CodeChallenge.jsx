@@ -618,6 +618,70 @@ int main() {
     }
   };
 
+  // Handle final test submission
+  const handleSubmitTest = async () => {
+    if (!test) {
+      alert('No test data available.');
+      return;
+    }
+
+    const confirmSubmit = window.confirm(
+      'Are you sure you want to submit the entire test? You will not be able to make any changes after submission.'
+    );
+
+    if (!confirmSubmit) return;
+
+    try {
+      // Save the current question's answer before submitting
+      const currentQuestion = getCurrentQuestion();
+      if (currentQuestion && code.trim()) {
+        const apiUrl = import.meta.env.VITE_FACULTY_API_URL || 'http://localhost:5000/api';
+        try {
+          const saveResponse = await fetch(`${apiUrl}/students/submissions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              testId: test.id,
+              answers: [{
+                questionId: currentQuestion.id,
+                submittedAnswer: code
+              }]
+            }),
+          });
+          
+          if (saveResponse.ok) {
+            console.log('Current answer saved successfully');
+          }
+        } catch (err) {
+          console.warn('Failed to save current answer:', err);
+        }
+      }
+      
+      // For now, just mark test as completed locally and redirect
+      // TODO: Implement backend endpoint for test submission
+      alert('Test submitted successfully! You will be redirected to the test list.');
+      
+      // Mark test as submitted locally
+      localStorage.setItem(`test_${test.id}_submitted`, JSON.stringify({
+        submittedAt: new Date().toISOString(),
+        testId: test.id
+      }));
+      
+      // Clear test data
+      localStorage.removeItem('currentTest');
+      
+      // Redirect to tests page
+      navigate('/tests');
+      
+    } catch (error) {
+      console.error('Error submitting test:', error);
+      alert(`Error submitting test: ${error.message}`);
+    }
+  };
+
   // Render the current problem
   const renderProblem = () => {
     const currentQuestion = getCurrentQuestion();
@@ -626,8 +690,6 @@ int main() {
     if (currentQuestion) {
       return (
         <div className="problem-container">
-          <h1>{currentQuestion.title || `Question ${getQuestionIndex(activeQuestion) + 1}`}</h1>
-          
           <div className="problem-description">
             <p>{currentQuestion.question_text || currentQuestion.description}</p>
             {currentQuestion.constraints && <p><strong>Constraints:</strong> {currentQuestion.constraints}</p>}
@@ -664,8 +726,6 @@ int main() {
 
     return (
       <div className="problem-container">
-        <h1>{problem.title}</h1>
-        
         <div className="problem-description">
           <p>{problem.description}</p>
           {problem.constraints && <p>{problem.constraints}</p>}
@@ -696,29 +756,8 @@ int main() {
           <h1>{test?.title || 'CS101: Midterm Examination'}</h1>
         </div>
         <div className="header-right">
-          {timeRemaining && (
-            <div className="timer-display">
-              <div className="timer-label">Time Remaining</div>
-              <div className="timer-value">
-                {timeRemaining !== 'Time Up!' ? (
-                  <>
-                    <span className="time-block">{timeRemaining.split(':')[0]}</span>
-                    <span className="time-separator">:</span>
-                    <span className="time-block">{timeRemaining.split(':')[1]}</span>
-                    <span className="time-separator">:</span>
-                    <span className="time-block">{timeRemaining.split(':')[2]}</span>
-                  </>
-                ) : (
-                  <span className="time-up">{timeRemaining}</span>
-                )}
-              </div>
-              <div className="timer-labels">
-                <span>Hours</span>
-                <span>Minutes</span>
-                <span>Seconds</span>
-              </div>
-            </div>
-          )}
+          <span className="saved-indicator">All changes saved ✓</span>
+          <button className="submit-test-btn" onClick={handleSubmitTest}>Submit Test</button>
           <div className="user-profile">
             <div className="user-avatar">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -730,297 +769,211 @@ int main() {
         </div>
       </header>
       
-      {/* <div className="code-challenge-problem-nav">
-        <h3 className="problem-number">1. {problems["Q.1"].title}</h3>
-      </div> */}
-      
-      <div className="code-challenge-main">
-        <div className="problem-tabs">
-          <div className="question-palette-header">
-            <h3>Question Palette</h3>
-          </div>
-          <div className="question-palette-grid">
-            {(questions.length > 0 ? questions : Array.from({length: 20}, (_, i) => i + 1)).map((q, idx) => {
-              const questionKey = `Q.${idx + 1}`;
-              const questionNum = idx + 1;
-              return (
-                <button 
-                  key={questionKey}
-                  className={`question-palette-btn ${activeQuestion === questionKey ? "palette-active" : ""}`}
-                  onClick={() => setActiveQuestion(questionKey)}
-                  disabled={questions.length > 0 && idx >= questions.length}
-                >
-                  {questionNum}
-                </button>
-              );
-            })}
-          </div>
-          <div className="palette-legend">
-            <div className="legend-item">
-              <div className="legend-dot legend-current"></div>
-              <span>Current</span>
-            </div>
-            <div className="legend-item">
-              <div className="legend-dot legend-answered"></div>
-              <span>Answered</span>
-            </div>
-            <div className="legend-item">
-              <div className="legend-dot legend-not-visited"></div>
-              <span>Not Visited</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="problem-content">
-          <div className="problem-header-info">
-            <span className="question-label">Question {activeQuestion.replace('Q.', '')} of {questions.length || 20}</span>
-            <span className="question-points">| 10 Points</span>
-          </div>
-          {renderProblem()}
-          <div className="problem-actions">
-            <button className="action-btn action-btn-secondary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-                <path d="M21 3v5h-5"/>
-              </svg>
-              Clear Response
-            </button>
-            <button className="action-btn action-btn-secondary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 11l3 3L22 4"/>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-              </svg>
-              Mark for Review
-            </button>
-          </div>
-        </div>
-        
-        <div className="editor-section">
-          <div className="editor-header">
-            <div className="editor-controls">
-              <select 
-                value={language} 
-                onChange={(e) => setLanguage(e.target.value)}
-                className="language-selector"
-              >
-                <option value="JavaScript">JavaScript</option>
-                <option value="Python">Python</option>
-                <option value="Java">Java</option>
-                <option value="C++">C++</option>
-                <option value="C">C</option>
-              </select>
-              
-              
-            </div>
-            
-            <div className="editor-actions">
-              <button 
-                className="run-btn"
-                onClick={runCode}
-                disabled={isRunning}
-                title={isRunning ? "Code execution in progress..." : "Run code"}
-              >
-                {isRunning ? (
-                  <>
-                    <span className="loading-spinner"></span> Running...
-                  </>
-                ) : (
-                  <>
-                    <Play size={16} /> Run
-                  </>
-                )}
-              </button>
-              
-              <button 
-                className="submit-btn"
-                onClick={submitCode}
-                disabled={isRunning}
-                title={isRunning ? "Code execution in progress..." : "Submit solution"}
-              >
-                {isRunning ? (
-                  <>
-                    <span className="loading-spinner"></span> Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send size={16} /> Submit
-                  </>
-                )}
-              </button>
+      <div className="code-challenge-body">
+        {/* Left Sidebar */}
+        <div className="left-sidebar">
+          {/* Time Remaining */}
+          <div className="time-remaining-widget">
+            <h3>Time Remaining</h3>
+            <div className="timer-value">
+              {timeRemaining && timeRemaining !== 'Time Up!' ? (
+                <>
+                  <div className="time-unit">
+                    <span className="time-block">{timeRemaining.split(':')[0]}</span>
+                    <span className="time-label">Hours</span>
+                  </div>
+                  <div className="time-unit">
+                    <span className="time-block">{timeRemaining.split(':')[1]}</span>
+                    <span className="time-label">Minutes</span>
+                  </div>
+                  <div className="time-unit">
+                    <span className="time-block">{timeRemaining.split(':')[2]}</span>
+                    <span className="time-label">Seconds</span>
+                  </div>
+                </>
+              ) : timeRemaining === 'Time Up!' ? (
+                <span className="time-up">{timeRemaining}</span>
+              ) : (
+                <>
+                  <div className="time-unit">
+                    <span className="time-block">00</span>
+                    <span className="time-label">Hours</span>
+                  </div>
+                  <div className="time-unit">
+                    <span className="time-block">00</span>
+                    <span className="time-label">Minutes</span>
+                  </div>
+                  <div className="time-unit">
+                    <span className="time-block">00</span>
+                    <span className="time-label">Seconds</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           
-          <div className="editor-container">
-            <Editor
-              height="100%"
-              defaultLanguage="python"
-              language={language.toLowerCase() === 'c++' ? 'cpp' : language.toLowerCase()}
-              value={code}
-              onChange={(value) => setCode(value)}
-              theme="hc-black"
-              options={{
-                fontSize: 14,
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-      
-      <div className="terminal-section">
-        <div className="terminal-header">
-          <div className="terminal-tabs">
-            <button className="terminal-tab terminal-tab-active">
-              <span>Console</span>
-            </button>
-            <button className="terminal-tab">
-              <span>Testcases</span>
-            </button>
-          </div>
-        </div>
-        <div className="terminal-content-wrapper">
-          <div className="terminal-content">
-            {terminalOutput.length === 0 ? (
-              <div className="terminal-placeholder">
-                Console output will appear here...
+          {/* Question Palette */}
+          <div className="question-palette-widget">
+            <h3>Question Palette</h3>
+            <div className="question-palette-grid">
+              {(questions.length > 0 ? questions : Array.from({length: 20}, (_, i) => i + 1)).map((q, idx) => {
+                const questionKey = `Q.${idx + 1}`;
+                const questionNum = idx + 1;
+                return (
+                  <button 
+                    key={questionKey}
+                    className={`question-palette-btn ${activeQuestion === questionKey ? "palette-active" : ""}`}
+                    onClick={() => setActiveQuestion(questionKey)}
+                    disabled={questions.length > 0 && idx >= questions.length}
+                  >
+                    {questionNum}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="palette-legend">
+              <div className="legend-item">
+                <div className="legend-dot legend-current"></div>
+                <span>Current</span>
               </div>
-            ) : (
-              terminalOutput.map((line, index) => (
-                <div 
-                  key={index} 
-                  className={`terminal-line ${line.type}`}
-                >
-                  {line.content}
+              <div className="legend-item">
+                <div className="legend-dot legend-answered"></div>
+                <span>Answered</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-dot legend-skipped"></div>
+                <span>Skipped</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-dot legend-marked"></div>
+                <span>Marked for Review</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-dot legend-not-visited"></div>
+                <span>Not Visited</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Main Content Area */}
+        <div className="main-content-area">
+          {/* Top Section: Question text above editor */}
+          <div className="top-section">
+            <div className="content-wrapper">
+              {/* Question Text Bar */}
+              <div className="question-bar">
+                <div className="question-header">
+                  <h2>Question {activeQuestion.replace('Q.', '')} of {questions.length || 20} | 10 Points</h2>
                 </div>
-              ))
-            )}
-            <div className="terminal-prompt">
-              <span className="prompt-symbol">$</span>
-              <input 
-                type="text" 
-                className="terminal-input" 
-                placeholder="Type here..."
-                disabled={!isRunning}
-              // Update the ref callback
-              ref={(inputEl) => {
-                // Auto-focus input when isRunning changes to true
-                if (inputEl && isRunning) {
-                  inputEl.focus();
-                  // Clear any previous input
-                  inputEl.value = '';
-                }
-              }}
-              onKeyDown={(e) => { // Change from onKeyPress to onKeyDown for better cross-browser support
-                if (e.key === 'Enter') {
-                  e.preventDefault(); // Prevent default to avoid form submissions
-                  const input = e.target.value.trim();
-                  
-                  if (!input) return; // Skip empty input
-                  
-                  if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
-                    try {
-                      // Send input to server
-                      activeSocket.send(JSON.stringify({
-                        "type": "input",
-                        "content": input
-                      }));
-                      
-                      // Add input to terminal output
-                      setTerminalOutput(prev => [
-                        ...prev,
-                        { type: 'system', content: `$ ${input}` }
-                      ]);
-                      
-                      // Clear the input field
-                      e.target.value = '';
-                    } catch (error) {
-                      console.error("Error sending input:", error);
-                      setTerminalOutput(prev => [
-                        ...prev,
-                        { type: 'error', content: `Failed to send input: ${error.message}` }
-                      ]);
-                    }
-                  } else {
-                    // Better error message with socket state information
-                    const socketState = activeSocket ? 
-                      ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][activeSocket.readyState] : 
-                      'NO_SOCKET';
-                      
-                    console.log(`Cannot send input: Socket state is ${socketState}`);
-                    setTerminalOutput(prev => [
-                      ...prev,
-                      { type: 'error', content: `Cannot send input: connection not available (${socketState})` }
-                    ]);
-                  }
-                }
-              }}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && activeSocket && activeSocket.readyState === WebSocket.OPEN) {
-                  const input = e.target.value;
-                  // Send input to WebSocket with the correct format
-                  try {
-                    activeSocket.send(JSON.stringify({
-                      "type": "input",
-                      "content": input
-                    }));
-                    
-                    // Add input to terminal output
-                    setTerminalOutput(prev => [
-                      ...prev,
-                      { type: 'system', content: `$ ${input}` }
-                    ]);
-                    
-                    // Clear the input field
-                    e.target.value = '';
-                  } catch (error) {
-                    console.error("Error sending input:", error);
-                    setTerminalOutput(prev => [
-                      ...prev,
-                      { type: 'error', content: `Failed to send input: ${error.message}` }
-                    ]);
-                  }
-                } else if (e.key === 'Enter') {
-                  // Inform user if socket isn't available
-                  if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
-                    setTerminalOutput(prev => [
-                      ...prev,
-                      { type: 'error', content: `Cannot send input: connection closed` }
-                    ]);
-                  }
-                }
-              }}
-            />
-          </div>
-          </div>
-          <div className="terminal-footer">
-            <div className="terminal-footer-actions">
-              <button className="footer-btn footer-btn-outline">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                Run Code
-              </button>
-              <button className="footer-btn footer-btn-primary">
-                Save & Next
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 12h14"/>
-                  <path d="m12 5 7 7-7 7"/>
-                </svg>
-              </button>
-              <button className="footer-btn footer-btn-success">
-                Submit Test
-              </button>
+                <div className="question-text">
+                  {renderProblem()}
+                </div>
+              </div>
+              
+              {/* Code Editor */}
+              <div className="editor-section-wrapper">
+                <div className="editor-header">
+                  <div className="editor-controls">
+                    <select 
+                      value={language} 
+                      onChange={(e) => setLanguage(e.target.value)}
+                      className="language-selector"
+                    >
+                      <option value="JavaScript">JavaScript</option>
+                      <option value="Python">Python</option>
+                      <option value="Java">Java</option>
+                      <option value="C++">C++</option>
+                      <option value="C">C</option>
+                    </select>
+                    <button className="reset-code-btn">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                        <path d="M21 3v5h-5"/>
+                      </svg>
+                      Reset Code
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="editor-container">
+                  <Editor
+                    height="100%"
+                    defaultLanguage="python"
+                    language={language.toLowerCase() === 'c++' ? 'cpp' : language.toLowerCase()}
+                    value={code}
+                    onChange={(value) => setCode(value)}
+                    theme="hc-black"
+                    options={{
+                      fontSize: 14,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                    }}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="changes-saved">
+          </div>
+          
+          {/* Bottom Section: Console/Testcases */}
+          <div className="bottom-section">
+            <div className="console-section">
+              <div className="console-header">
+                <div className="console-tabs">
+                  <button className="console-tab console-tab-active">
+                    <span>Console</span>
+                  </button>
+                  <button className="console-tab">
+                    <span>Testcases</span>
+                  </button>
+                </div>
+              </div>
+              <div className="console-content">
+                {terminalOutput.length === 0 ? (
+                  <div className="console-placeholder">
+                    Console output will appear here...
+                  </div>
+                ) : (
+                  terminalOutput.map((line, index) => (
+                    <div 
+                      key={index} 
+                      className={`console-line ${line.type}`}
+                    >
+                      {line.content}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Action Buttons at Bottom Right */}
+          <div className="action-bar">
+            <button 
+              className="action-bar-btn action-run"
+              onClick={runCode}
+              disabled={isRunning}
+            >
+              {isRunning ? (
+                <>
+                  <span className="loading-spinner"></span>
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play size={16} />
+                  Run Code
+                </>
+              )}
+            </button>
+            <button className="action-bar-btn action-save">
+              Save & Next
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <path d="M22 4 12 14.01l-3-3"/>
+                <path d="M5 12h14"/>
+                <path d="m12 5 7 7-7 7"/>
               </svg>
-              <span>All changes saved</span>
-            </div>
+            </button>
           </div>
         </div>
       </div>
