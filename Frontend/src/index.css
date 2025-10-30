@@ -1479,41 +1479,55 @@ body {
 .editor-controls {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
+  width: 95%;
 }
 
 .language-selector {
-  background-color: #3e3e42;
-  color: #cccccc;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 13px;
+  background-color: transparent;
+  color: #858585;
+  border: none;
+  border-radius: 0;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   outline: none;
+  transition: all 0.2s;
+  position: relative;
 }
 
 .language-selector:hover {
-  background-color: #4e4e52;
+  color: #cccccc;
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .reset-code-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background-color: transparent;
-  color: #cccccc;
-  border: 1px solid #555555;
+  color: #858585;
+  border: none;
   border-radius: 4px;
   padding: 6px 12px;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  margin-left: auto;
+}
+
+.reset-code-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
 }
 
 .reset-code-btn:hover {
-  background-color: #3e3e42;
-  border-color: #777777;
+  color: #cccccc;
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .editor-container {
