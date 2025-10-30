@@ -635,12 +635,21 @@ int main() {
           </div>
           
           {currentQuestion.test_cases && currentQuestion.test_cases.length > 0 && (
-            <div className="test-cases">
+            <div className="test-cases-section">
               <h3>Example Test Cases:</h3>
               {currentQuestion.test_cases.slice(0, 2).map((testCase, idx) => (
-                <div key={idx} className="test-case">
-                  <p><strong>Input:</strong> {testCase.input}</p>
-                  <p><strong>Expected Output:</strong> {testCase.expected_output}</p>
+                <div key={idx} className="test-case-card">
+                  <div className="test-case-label">Example {idx + 1}</div>
+                  <div className="test-case-content">
+                    <div className="test-case-item">
+                      <span className="test-label">Input:</span>
+                      <code className="test-value">{testCase.input}</code>
+                    </div>
+                    <div className="test-case-item">
+                      <span className="test-label">Expected Output:</span>
+                      <code className="test-value">{testCase.expected_output}</code>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -682,23 +691,43 @@ int main() {
   return (
     <div className="code-challenge-container">
       <header className="code-challenge-header">
-        <h1>{test?.title || 'OnScreen Test'}</h1>
-        {timeRemaining && (
-          <div className="timer-display" style={{
-            fontSize: '1.2rem',
-            fontWeight: 'bold',
-            color: timeRemaining === 'Time Up!' ? '#ef4444' : '#10b981',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            {timeRemaining}
+        <div className="header-left">
+          <div className="header-icon">📝</div>
+          <h1>{test?.title || 'CS101: Midterm Examination'}</h1>
+        </div>
+        <div className="header-right">
+          {timeRemaining && (
+            <div className="timer-display">
+              <div className="timer-label">Time Remaining</div>
+              <div className="timer-value">
+                {timeRemaining !== 'Time Up!' ? (
+                  <>
+                    <span className="time-block">{timeRemaining.split(':')[0]}</span>
+                    <span className="time-separator">:</span>
+                    <span className="time-block">{timeRemaining.split(':')[1]}</span>
+                    <span className="time-separator">:</span>
+                    <span className="time-block">{timeRemaining.split(':')[2]}</span>
+                  </>
+                ) : (
+                  <span className="time-up">{timeRemaining}</span>
+                )}
+              </div>
+              <div className="timer-labels">
+                <span>Hours</span>
+                <span>Minutes</span>
+                <span>Seconds</span>
+              </div>
+            </div>
+          )}
+          <div className="user-profile">
+            <div className="user-avatar">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
           </div>
-        )}
+        </div>
       </header>
       
       {/* <div className="code-challenge-problem-nav">
@@ -707,23 +736,63 @@ int main() {
       
       <div className="code-challenge-main">
         <div className="problem-tabs">
-          {(questions.length > 0 ? questions : [1, 2, 3]).map((q, idx) => {
-            const questionKey = `Q.${idx + 1}`;
-            return (
-              <button 
-                key={questionKey}
-                className={activeQuestion === questionKey ? "tab-active" : ""} 
-                onClick={() => setActiveQuestion(questionKey)}
-                disabled={questions.length > 0 && idx >= questions.length}
-              >
-                {questionKey}
-              </button>
-            );
-          })}
+          <div className="question-palette-header">
+            <h3>Question Palette</h3>
+          </div>
+          <div className="question-palette-grid">
+            {(questions.length > 0 ? questions : Array.from({length: 20}, (_, i) => i + 1)).map((q, idx) => {
+              const questionKey = `Q.${idx + 1}`;
+              const questionNum = idx + 1;
+              return (
+                <button 
+                  key={questionKey}
+                  className={`question-palette-btn ${activeQuestion === questionKey ? "palette-active" : ""}`}
+                  onClick={() => setActiveQuestion(questionKey)}
+                  disabled={questions.length > 0 && idx >= questions.length}
+                >
+                  {questionNum}
+                </button>
+              );
+            })}
+          </div>
+          <div className="palette-legend">
+            <div className="legend-item">
+              <div className="legend-dot legend-current"></div>
+              <span>Current</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-dot legend-answered"></div>
+              <span>Answered</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-dot legend-not-visited"></div>
+              <span>Not Visited</span>
+            </div>
+          </div>
         </div>
         
         <div className="problem-content">
+          <div className="problem-header-info">
+            <span className="question-label">Question {activeQuestion.replace('Q.', '')} of {questions.length || 20}</span>
+            <span className="question-points">| 10 Points</span>
+          </div>
           {renderProblem()}
+          <div className="problem-actions">
+            <button className="action-btn action-btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+              </svg>
+              Clear Response
+            </button>
+            <button className="action-btn action-btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 11l3 3L22 4"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+              Mark for Review
+            </button>
+          </div>
         </div>
         
         <div className="editor-section">
@@ -802,29 +871,38 @@ int main() {
       
       <div className="terminal-section">
         <div className="terminal-header">
-          <span>Terminal</span>
-          {/* <div className="terminal-controls">
-            <button className="terminal-btn">⊞</button>
-            <button className="terminal-btn">□</button>
-            <button className="terminal-btn">✕</button>
-          </div> */}
+          <div className="terminal-tabs">
+            <button className="terminal-tab terminal-tab-active">
+              <span>Console</span>
+            </button>
+            <button className="terminal-tab">
+              <span>Testcases</span>
+            </button>
+          </div>
         </div>
-        <div className="terminal-content">
-          {terminalOutput.map((line, index) => (
-            <div 
-              key={index} 
-              className={`terminal-line ${line.type}`}
-            >
-              {line.content}
-            </div>
-          ))}
-          <div className="terminal-prompt">
-            <span className="prompt-symbol">$</span>
-            <input 
-              type="text" 
-              className="terminal-input" 
-              placeholder="Type here..."
-              disabled={!isRunning}
+        <div className="terminal-content-wrapper">
+          <div className="terminal-content">
+            {terminalOutput.length === 0 ? (
+              <div className="terminal-placeholder">
+                Console output will appear here...
+              </div>
+            ) : (
+              terminalOutput.map((line, index) => (
+                <div 
+                  key={index} 
+                  className={`terminal-line ${line.type}`}
+                >
+                  {line.content}
+                </div>
+              ))
+            )}
+            <div className="terminal-prompt">
+              <span className="prompt-symbol">$</span>
+              <input 
+                type="text" 
+                className="terminal-input" 
+                placeholder="Type here..."
+                disabled={!isRunning}
               // Update the ref callback
               ref={(inputEl) => {
                 // Auto-focus input when isRunning changes to true
@@ -914,6 +992,35 @@ int main() {
                 }
               }}
             />
+          </div>
+          </div>
+          <div className="terminal-footer">
+            <div className="terminal-footer-actions">
+              <button className="footer-btn footer-btn-outline">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                Run Code
+              </button>
+              <button className="footer-btn footer-btn-primary">
+                Save & Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14"/>
+                  <path d="m12 5 7 7-7 7"/>
+                </svg>
+              </button>
+              <button className="footer-btn footer-btn-success">
+                Submit Test
+              </button>
+            </div>
+            <div className="changes-saved">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <path d="M22 4 12 14.01l-3-3"/>
+              </svg>
+              <span>All changes saved</span>
+            </div>
           </div>
         </div>
       </div>
