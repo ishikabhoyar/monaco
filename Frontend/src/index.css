@@ -1521,6 +1521,15 @@ body {
   overflow: hidden;
 }
 
+/* Remove Monaco Editor active line border */
+.editor-container .monaco-editor .view-overlays .current-line {
+  border: none !important;
+}
+
+.editor-container .monaco-editor .margin-view-overlays .current-line {
+  border: none !important;
+}
+
 .test-cases-section {
   margin-top: 16px;
 }
