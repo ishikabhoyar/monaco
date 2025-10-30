@@ -1126,7 +1126,7 @@ body {
 
 .code-challenge-header h1 {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   color: #1a1a1a;
 }
@@ -1138,7 +1138,7 @@ body {
 }
 
 .saved-indicator {
-  font-size: 13px;
+  font-size: 12px;
   color: #666;
   display: flex;
   align-items: center;
@@ -1210,8 +1210,8 @@ body {
 
 .time-remaining-widget h3 {
   margin: 0 0 16px 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #333;
 }
 
@@ -1230,19 +1230,19 @@ body {
 .time-unit .time-block {
   background-color: #fef3cd;
   color: #d97706;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 6px;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
-  min-width: 50px;
+  min-width: 48px;
   text-align: center;
   font-family: 'Consolas', 'Monaco', monospace;
 }
 
 .time-unit .time-label {
-  font-size: 11px;
+  font-size: 10px;
   color: #666;
-  margin-top: 6px;
+  margin-top: 5px;
   text-transform: capitalize;
 }
 
@@ -1254,8 +1254,8 @@ body {
 
 .question-palette-widget h3 {
   margin: 0 0 16px 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #333;
 }
 
@@ -1287,17 +1287,17 @@ body {
 }
 
 .question-palette-btn {
-  padding: 10px 8px;
+  padding: 8px 6px;
   background-color: #e9ecef;
   color: #495057;
   border: 1px solid #dee2e6;
   border-radius: 4px;
   text-align: center;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   transition: all 0.2s ease;
-  min-width: 36px;
+  min-width: 34px;
 }
 
 .question-palette-btn:hover:not(.palette-active):not(:disabled) {
@@ -1345,7 +1345,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: #495057;
 }
 
@@ -1418,8 +1418,8 @@ body {
 
 .question-header h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: #212529;
 }
 
@@ -1439,7 +1439,7 @@ body {
 
 .problem-description {
   margin-bottom: 16px;
-  font-size: 13px;
+  font-size: 18px;
   line-height: 1.6;
   color: #495057;
 }
@@ -1454,7 +1454,7 @@ body {
 }
 
 .problem-container {
-  font-size: 13px;
+  font-size: 16px;
   color: #495057;
 }
 
@@ -1617,7 +1617,7 @@ body {
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   transition: all 0.2s;
 }
@@ -1637,7 +1637,7 @@ body {
   overflow-y: auto;
   background-color: #f8f9fa;
   font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .console-placeholder {
@@ -1666,11 +1666,11 @@ body {
 /* Action Bar */
 .action-bar {
   position: absolute;
-  bottom: 16px;
+  bottom: 60px;
   right: 16px;
   display: flex;
   gap: 12px;
-  z-index: 10;
+  z-index: 1001;
 }
 
 .action-bar-btn {
@@ -1679,7 +1679,7 @@ body {
   gap: 6px;
   padding: 8px 16px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;

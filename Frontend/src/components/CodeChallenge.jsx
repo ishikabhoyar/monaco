@@ -758,14 +758,14 @@ int main() {
         <div className="header-right">
           <span className="saved-indicator">All changes saved ✓</span>
           <button className="submit-test-btn" onClick={handleSubmitTest}>Submit Test</button>
-          <div className="user-profile">
+          {/* <div className="user-profile">
             <div className="user-avatar">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                 <circle cx="12" cy="7" r="4"></circle>
               </svg>
             </div>
-          </div>
+          </div> */}
         </div>
       </header>
       
@@ -864,7 +864,7 @@ int main() {
               {/* Question Text Bar */}
               <div className="question-bar">
                 <div className="question-header">
-                  <h2>Question {activeQuestion.replace('Q.', '')} of {questions.length || 20} | 10 Points</h2>
+                  <h2>Question {activeQuestion.replace('Q.', '')} of {questions.length || 20}</h2>
                 </div>
                 <div className="question-text">
                   {renderProblem()}
