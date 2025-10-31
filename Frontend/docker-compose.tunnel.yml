@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  frontend-tunnel:
+    build:
+      context: .
+      dockerfile: Dockerfile.tunnel
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+    container_name: monaco-frontend-tunnel
+    environment:
+      - NODE_ENV=production
+    networks:
+      - monaco-network
+
+networks:
+  monaco-network:
+    driver: bridge
