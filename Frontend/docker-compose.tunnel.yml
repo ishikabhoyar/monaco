@@ -1,19 +1,19 @@
-version: '3.8'
-
 services:
-  frontend-tunnel:
+  tunnel:
     build:
       context: .
       dockerfile: Dockerfile.tunnel
-    ports:
-      - "8001:8001"
     restart: unless-stopped
-    container_name: monaco-frontend-tunnel
+    # Use extra_hosts to map host.docker.internal to host machine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      - NODE_ENV=production
+      # Define cloudflared environment variables
+      - NO_AUTOUPDATE=true
+    # Isolated network
     networks:
-      - monaco-network
+      - monaco-tunnel-network
 
 networks:
-  monaco-network:
+  monaco-tunnel-network:
     driver: bridge
