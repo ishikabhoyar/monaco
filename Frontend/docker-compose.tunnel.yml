@@ -4,16 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.tunnel
     restart: unless-stopped
-    # Use extra_hosts to map host.docker.internal to host machine
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: "host"
     environment:
       # Define cloudflared environment variables
       - NO_AUTOUPDATE=true
-    # Isolated network
-    networks:
-      - monaco-tunnel-network
-
-networks:
-  monaco-tunnel-network:
-    driver: bridge
