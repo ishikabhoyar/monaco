@@ -1,0 +1,11 @@
+services:
+  tunnel:
+    build:
+      context: .
+      dockerfile: Dockerfile.tunnel-only
+    restart: unless-stopped
+    # Use host network mode to directly access localhost:9090
+    network_mode: "host"
+    environment:
+      - TUNNEL_ORIGIN_CERT=/etc/cloudflared/cert.pem
+      - NO_AUTOUPDATE=true
