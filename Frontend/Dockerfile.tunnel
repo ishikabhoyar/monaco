@@ -32,9 +32,6 @@ RUN mkdir -p /etc/cloudflared
 COPY credentials.json /etc/cloudflared/credentials.json
 COPY config.json /etc/cloudflared/config.json
 
-# Setup DNS routing for the tunnel
-RUN cloudflared tunnel route dns 8c559c7c-42bb-4b9d-96a2-99cefd274b06 monaco.ishikabhoyar.tech || echo "DNS routing already set up or failed - continuing anyway"
-
 # Copy built files from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
