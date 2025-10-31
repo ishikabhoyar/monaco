@@ -21,7 +21,8 @@ const TestList = () => {
   const fetchTests = async () => {
     try {
       console.log('Fetching tests with token:', token?.substring(0, 50) + '...');
-      const response = await fetch('http://localhost:5000/api/students/tests', {
+      const API_URL = import.meta.env.VITE_FACULTY_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_URL}/students/tests`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -57,7 +58,8 @@ const TestList = () => {
 
   const handleStartTest = async (test) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/students/tests/${test.id}/questions`, {
+      const API_URL = import.meta.env.VITE_FACULTY_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_URL}/students/tests/${test.id}/questions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -83,7 +85,8 @@ const TestList = () => {
     if (!selectedTest || !password) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/students/tests/${selectedTest.id}/verify-password`, {
+      const API_URL = import.meta.env.VITE_FACULTY_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_URL}/students/tests/${selectedTest.id}/verify-password`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

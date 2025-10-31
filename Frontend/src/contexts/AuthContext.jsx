@@ -41,7 +41,8 @@ export const AuthProvider = ({ children }) => {
     // For Google OAuth login
     if (googleToken && userInfo) {
       // Exchange Google token for our JWT
-      const response = await fetch('http://localhost:5000/api/students/login', {
+      const API_URL = import.meta.env.VITE_FACULTY_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_URL}/students/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
